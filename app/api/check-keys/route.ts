@@ -1,35 +1,34 @@
 import { NextResponse } from 'next/server';
 
 export async function GET() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+  // 從環境變數讀取
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || '';
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
-  // 清除 URL 尾端多餘的斜線或路徑
+  // 自動清理 URL 格式
   const cleanUrl = url.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
 
-  // 1. 驗證 URL 是否合法
+  // 格式驗證
   const isUrlValid = cleanUrl.startsWith('https://') && cleanUrl.includes('.supabase.co');
-
-  // 2. 驗證 Key 是否合法：支援經典 JWT (eyJ...) 或 Supabase 新版 (sb_publishable_...)
   const isJwtFormat = key.startsWith('eyJ') && key.length > 80;
-  const isNewPublishableFormat = key.startsWith('sb_publishable_') && key.length > 20;
-  const isKeyValid = isJwtFormat || isNewPublishableFormat;
+  const isPublishableFormat = key.startsWith('sb_publishable_') && key.length > 20;
+  const isKeyValid = isJwtFormat || isPublishableFormat;
 
-  const isAllValid = isUrlValid && isKeyValid;
+  const isConfigValid = isUrlValid && isKeyValid;
 
   return NextResponse.json({
-    status: isAllValid ? 200 : 400,
-    success: isAllValid,
-    message: isAllValid
-      ? '🎉 成功！Supabase URL 與 Publishable/ANON Key 格式驗證通過！'
-      : '❌ 金鑰或 URL 格式不正確，請檢查 Vercel 環境變數。',
-    keyDetails: {
-      url: cleanUrl || '未讀取到 URL',
+    status: isConfigValid ? 200 : 400,
+    success: isConfigValid,
+    message: isConfigValid
+      ? '🎉 恭喜！Vercel 環境變數 (NEXT_PUBLIC_SUPABASE_URL 與 ANON_KEY) 已完美設定並成功注入！'
+      : '❌ 環境變數設定有誤，請確認 Vercel 設定檔中的變數名稱與數值。',
+    envCheck: {
+      url: cleanUrl || '未讀取到 URL (Empty)',
+      isUrlValid,
       keyLength: key.length,
-      isJwtFormat,
-      isNewPublishableFormat,
+      keyFormat: isJwtFormat ? 'JWT (eyJ...)' : isPublishableFormat ? 'Publishable (sb_...)' : '未知/無效格式',
       isKeyValid,
-      keyPreview: key ? `${key.substring(0, 15)}...` : '未注入',
+      keyPreview: key ? `${key.substring(0, 15)}...` : '未讀取到 KEY (Empty)',
     },
     timestamp: new Date().toISOString(),
   });
