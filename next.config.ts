@@ -18,15 +18,12 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // 3. 避免型別或 ESLint 微小警告中斷 Vercel npm run build
+  // 3. 避免型別警告阻擋 Vercel npm run build
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
 
-  // 4. 自訂安全標頭與 CORS 開放
+  // 4. 自訂安全標頭與跨域 CORS 開放
   async headers() {
     return [
       {
