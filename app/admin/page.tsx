@@ -1,5 +1,82 @@
 'use client';
 
+'use client';
+
+export const dynamic = 'force-dynamic';
+
+import { useEffect, useState } from 'react';
+import { supabase, checkSupabaseKeyStatus } from '@/lib/supabase';
+
+// ... (中間原本的介面定義 Order, Product 等保持不變)
+
+export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+
+  // 診斷金鑰狀態
+  const [keyInfo, setKeyInfo] = useState<any>(null);
+
+  useEffect(() => {
+    // 載入時取得金鑰打包狀態
+    setKeyInfo(checkSupabaseKeyStatus());
+  }, []);
+
+  // ... (其餘邏輯處理保持不變)
+
+  // 未登入畫面 (加入金鑰診斷提示)
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-stone-100 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-md w-full max-w-md border border-stone-200 space-y-4">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-stone-800 mb-1">threedays 麵包店</h1>
+            <p className="text-sm text-stone-500">後台管理系統登入</p>
+          </div>
+
+          {/* 🔍 API Key 現場診斷區塊 */}
+          {keyInfo && (
+            <div className={`p-3 rounded-xl text-xs space-y-1 border ${
+              keyInfo.isKeyValid ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}>
+              <div className="font-bold flex items-center justify-between">
+                <span>Supabase API Key 狀態:</span>
+                <span>{keyInfo.isKeyValid ? '🟢 正常注入' : '🔴 金鑰無效/未注入'}</span>
+              </div>
+              <div>URL: <code className="bg-white/50 px-1 rounded">{keyInfo.urlValue}</code></div>
+              <div>ANON Key: <code className="bg-white/50 px-1 rounded">{keyInfo.keyPrefix}</code> (長度: {keyInfo.keyLength})</div>
+              {!keyInfo.isKeyValid && (
+                <div className="mt-1 font-semibold text-[11px] underline">
+                  ⚠️ 提示：請確認 Vercel 設定檔後執行 git push 觸發重新編譯。
+                </div>
+              )}
+            </div>
+          )}
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-stone-600 mb-1">管理員密碼</label>
+              <input
+                type="password"
+                placeholder="請輸入後台密碼"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-800/30"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-amber-800 text-amber-50 font-bold py-2.5 rounded-xl hover:bg-amber-900 transition"
+            >
+              登入管理後台
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ... (其餘已登入後的 UI 畫面程式碼保持不變)
+}
 // 強制 Next.js 將此頁面視為動態渲染，避免 npm run build 靜態編譯失敗
 export const dynamic = 'force-dynamic';
 
