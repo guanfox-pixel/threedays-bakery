@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 1. 允許 Supabase 圖片與雲端儲存庫存取
+  // 1. 關閉 X-Powered-By 標頭提升安全性
+  poweredByHeader: false,
+
+  // 2. 允許 Supabase 圖片與外部圖片存取
   images: {
     remotePatterns: [
       {
@@ -9,14 +12,15 @@ const nextConfig = {
       },
     ],
   },
-  // 2. 允許 DNS 轉址與 HiNet 節點標頭傳遞
+
+  // 3. 自訂 Header 避免自訂網域被跨域原則 (CORS) 阻擋
   async headers() {
     return [
       {
         source: '/:path*',
         headers: [
-          { key: 'Access-Control-Allow-Origin', value: '*' },
-          { key: 'X-DNS-Prefetch-Control', value: 'on' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
         ],
       },
     ];
