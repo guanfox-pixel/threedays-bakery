@@ -1,7 +1,31 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+// 強制 Next.js 將此頁面視為動態渲染，避免 npm run build 靜態編譯失敗
+export const dynamic = 'force-dynamic';
+
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+
+interface OrderItem {
+  id: number;
+  name: string;
+  price: number;
+  quantity: number;
+}
+
+interface Order {
+  id: number;
+  customer_name: string;
+  customer_phone: string;
+  pickup_type: string;
+  pickup_date: string;
+  items: OrderItem[] | any;
+  total_amount: number;
+  image_url: string | null;
+  status: string;
+  note?: string;
+  created_at: string;
+}
 
 interface Product {
   id: number;
@@ -13,442 +37,425 @@ interface Product {
   is_active: boolean;
 }
 
-interface Order {
-  id: number;
-  customer_name: string;
-  customer_phone: string;
-  pickup_type: string;
-  pickup_date: string;
-  items: any[];
-  total_amount: number;
-  status: string;
-  created_at: string;
-}
-
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [passwordInput, setPasswordInput] = useState('');
-  const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
+  const [password, setPassword] = useState('');
+  const [activeTab, setActiveTab] = useState<'orders' | 'products'>('orders');
 
-  const [products, setProducts] = useState<Product[]>([]);
+  // 資料狀態
   const [orders, setOrders] = useState<Order[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // 新增商品表單狀態
-  const [newName, setNewName] = useState('');
-  const [newDescription, setNewDescription] = useState('');
-  const [newPrice, setNewPrice] = useState('');
-  const [newStock, setNewStock] = useState('');
-  
-  // 商品照片上傳狀態
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
+  const [newProdName, setNewProdName] = useState('');
+  const [newProdDesc, setNewProdDesc] = useState('');
+  const [newProdPrice, setNewProdPrice] = useState<number | ''>('');
+  const [newProdStock, setNewProdStock] = useState<number | ''>('');
+  const [newProdImageUrl, setNewProdImageUrl] = useState('');
 
+  // 檢視放大照片 Modal
+  const [modalImage, setModalImage] = useState<string | null>(null);
+
+  // 1. 密碼登入驗證
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passwordInput === 'threedays2026') {
+    if (password === 'threedays2026') {
       setIsAuthenticated(true);
-      fetchProducts();
       fetchOrders();
+      fetchProducts();
     } else {
-      alert('密碼錯誤！');
+      alert('密碼錯誤！請重新輸入。');
     }
   };
 
-  const fetchProducts = async () => {
-    const { data } = await supabase.from('products').select('*').order('id');
-    if (data) setProducts(data);
-  };
-
+  // 2. 讀取訂單列表
   const fetchOrders = async () => {
-    const { data } = await supabase.from('orders').select('*').order('id', { ascending: false });
-    if (data) setOrders(data);
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('讀取訂單失敗:', error);
+    } else if (data) {
+      setOrders(data);
+    }
+    setLoading(false);
   };
 
-  // 1. 處理商品照片選取與預覽
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > 5 * 1024 * 1024) {
-        alert('照片檔案大小不能超過 5MB！');
-        return;
-      }
-      setSelectedFile(file);
-      setImagePreview(URL.createObjectURL(file));
+  // 3. 讀取商品列表
+  const fetchProducts = async () => {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (error) {
+      console.error('讀取商品失敗:', error);
+    } else if (data) {
+      setProducts(data);
     }
   };
 
-  // 2. 上傳商品照片至 Supabase Storage
-  const uploadProductImage = async (file: File): Promise<string | null> => {
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-      const filePath = `products/${fileName}`;
+  // 4. 更新訂單狀態
+  const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
+    const { error } = await supabase
+      .from('orders')
+      .update({ status: newStatus })
+      .eq('id', orderId);
 
-      const { error: uploadError } = await supabase.storage
-        .from('product-images')
-        .upload(filePath, file);
-
-      if (uploadError) {
-        console.error('上傳失敗:', uploadError);
-        return null;
-      }
-
-      const { data } = supabase.storage
-        .from('product-images')
-        .getPublicUrl(filePath);
-
-      return data.publicUrl;
-    } catch (err) {
-      console.error('圖片上傳錯誤:', err);
-      return null;
+    if (error) {
+      alert(`更新失敗: ${error.message}`);
+    } else {
+      fetchOrders();
     }
   };
 
-  // 3. 處理新增商品提交
+  // 5. 切換商品上下架狀態
+  const handleToggleProductActive = async (productId: number, currentActive: boolean) => {
+    const { error } = await supabase
+      .from('products')
+      .update({ is_active: !currentActive })
+      .eq('id', productId);
+
+    if (error) {
+      alert(`更新商品失敗: ${error.message}`);
+    } else {
+      fetchProducts();
+    }
+  };
+
+  // 6. 新增商品
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newName || !newPrice || !newStock) {
-      alert('請填寫完整商品名稱、價格與初始庫存！');
+    if (!newProdName || newProdPrice === '' || newProdStock === '') {
+      alert('請填寫完整商品名稱、價格與庫存！');
       return;
     }
 
-    setIsUploading(true);
-    let imageUrl = '';
-
-    // 如果有選取照片，先執行上傳
-    if (selectedFile) {
-      const uploadedUrl = await uploadProductImage(selectedFile);
-      if (uploadedUrl) {
-        imageUrl = uploadedUrl;
-      } else {
-        alert('麵包照片上傳失敗！');
-        setIsUploading(false);
-        return;
-      }
-    }
-
-    // 寫入 Supabase 產品表
     const { error } = await supabase.from('products').insert([
       {
-        name: newName,
-        description: newDescription,
-        price: parseFloat(newPrice),
-        stock: parseInt(newStock),
-        image_url: imageUrl,
+        name: newProdName,
+        description: newProdDesc,
+        price: Number(newProdPrice),
+        stock: Number(newProdStock),
+        image_url: newProdImageUrl,
         is_active: true,
       },
     ]);
 
-    setIsUploading(false);
-
     if (error) {
-      alert(`新增失敗：${error.message}`);
+      alert(`新增商品失敗: ${error.message}`);
     } else {
-      alert('🎉 麵包商品新增成功！');
-      setNewName('');
-      setNewDescription('');
-      setNewPrice('');
-      setNewStock('');
-      setSelectedFile(null);
-      setImagePreview(null);
+      alert('🎉 成功新增麵包商品！');
+      setNewProdName('');
+      setNewProdDesc('');
+      setNewProdPrice('');
+      setNewProdStock('');
+      setNewProdImageUrl('');
       fetchProducts();
     }
   };
 
-  // 本地暫存庫存修改
-  const handleLocalStockChange = (id: number, newStock: number) => {
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, stock: Math.max(0, newStock) } : p))
-    );
-  };
-
-  // 快捷填寫庫存
-  const handleSetAllStock = (defaultQty: number) => {
-    setProducts((prev) => prev.map((p) => ({ ...p, stock: defaultQty })));
-  };
-
-  // 上下架切換
-  const handleToggleActive = async (id: number, currentStatus: boolean) => {
-    const newStatus = !currentStatus;
-    setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, is_active: newStatus } : p))
-    );
-
-    await supabase.from('products').update({ is_active: newStatus }).eq('id', id);
-  };
-
-  // 批次儲存庫存
-  const handleBatchSaveStock = async () => {
-    setIsSaving(true);
-    try {
-      for (const p of products) {
-        await supabase.from('products').update({ stock: p.stock }).eq('id', p.id);
-      }
-      alert('🎉 每日庫存更新成功！');
-    } catch (error) {
-      alert('儲存失敗，請重試！');
-    } finally {
-      setIsSaving(false);
-      fetchProducts();
-    }
-  };
-
-  const handleDeleteProduct = async (id: number) => {
-    if (!confirm('確定要刪除這項商品嗎？')) return;
-    const { error } = await supabase.from('products').delete().eq('id', id);
-    if (!error) fetchProducts();
-  };
-
+  // 未登入畫面
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-amber-50 flex items-center justify-center p-4 font-sans">
-        <form onSubmit={handleLogin} className="bg-white p-8 rounded-2xl shadow-md max-w-md w-full border border-amber-200">
-          <h1 className="text-2xl font-bold text-amber-900 text-center mb-6">threedays 後台登入</h1>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">管理員密碼</label>
-            <input
-              type="password"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              placeholder="請輸入後台密碼"
-              className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
-            />
-          </div>
-          <button type="submit" className="w-full bg-amber-800 text-white font-bold py-3 rounded-xl hover:bg-amber-900 transition">
-            登入管理系統
-          </button>
-        </form>
+      <div className="min-h-screen bg-stone-100 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-2xl shadow-md w-full max-w-md border border-stone-200">
+          <h1 className="text-2xl font-bold text-stone-800 text-center mb-2">
+            threedays 麵包店
+          </h1>
+          <p className="text-sm text-stone-500 text-center mb-6">後台管理系統登入</p>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-stone-600 mb-1">管理員密碼</label>
+              <input
+                type="password"
+                placeholder="請輸入後台密碼"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full border border-stone-300 rounded-xl px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-800/30"
+              />
+            </div>
+            <button
+              type="submit"
+              className="w-full bg-amber-800 text-amber-50 font-bold py-2.5 rounded-xl hover:bg-amber-900 transition"
+            >
+              登入管理後台
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8 font-sans">
-      <div className="max-w-6xl mx-auto">
-        <header className="flex justify-between items-center mb-8 border-b pb-4">
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-amber-900">
-            threedays 麵包店 - 快速管理後台
-          </h1>
-          <button onClick={() => setIsAuthenticated(false)} className="text-xs bg-gray-200 text-gray-700 px-3 py-1.5 rounded hover:bg-gray-300 transition">
-            登出
-          </button>
-        </header>
+    <div className="min-h-screen bg-stone-50 text-stone-800 pb-16">
+      {/* 頂部 Header */}
+      <header className="bg-amber-900 text-amber-50 py-4 px-6 shadow flex justify-between items-center">
+        <h1 className="text-xl font-bold tracking-wide">🥖 threedays 麵包店後台管理</h1>
+        <button
+          onClick={() => setIsAuthenticated(false)}
+          className="text-xs bg-amber-800 hover:bg-amber-700 px-3 py-1.5 rounded-lg transition"
+        >
+          登出
+        </button>
+      </header>
 
-        <div className="flex gap-4 mb-6">
-          <button
-            onClick={() => setActiveTab('products')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm transition ${
-              activeTab === 'products' ? 'bg-amber-800 text-white' : 'bg-white text-gray-600 border hover:bg-amber-50'
-            }`}
-          >
-            🍞 每日庫存與上下架
-          </button>
+      {/* 標籤頁選單 */}
+      <div className="max-w-6xl mx-auto px-4 mt-6">
+        <div className="flex border-b border-stone-200 gap-4">
           <button
             onClick={() => setActiveTab('orders')}
-            className={`px-4 py-2 rounded-lg font-bold text-sm transition ${
-              activeTab === 'orders' ? 'bg-amber-800 text-white' : 'bg-white text-gray-600 border hover:bg-amber-50'
+            className={`pb-3 px-2 font-bold text-sm transition-all border-b-2 ${
+              activeTab === 'orders'
+                ? 'border-amber-800 text-amber-900'
+                : 'border-transparent text-stone-400 hover:text-stone-600'
             }`}
           >
-            📦 訂單管理 ({orders.length})
+            📋 訂單管理
+          </button>
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`pb-3 px-2 font-bold text-sm transition-all border-b-2 ${
+              activeTab === 'products'
+                ? 'border-amber-800 text-amber-900'
+                : 'border-transparent text-stone-400 hover:text-stone-600'
+            }`}
+          >
+            🥐 商品/庫存管理
           </button>
         </div>
 
-        {activeTab === 'products' && (
-          <div className="space-y-8">
-            {/* 快速管理工具列 */}
-            <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-200 flex flex-wrap justify-between items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-amber-900">⚡ 快速填充：</span>
-                <button
-                  onClick={() => handleSetAllStock(20)}
-                  className="bg-white border border-amber-300 text-xs px-2.5 py-1 rounded hover:bg-amber-100"
-                >
-                  全部設為 20 個
-                </button>
-                <button
-                  onClick={() => handleSetAllStock(10)}
-                  className="bg-white border border-amber-300 text-xs px-2.5 py-1 rounded hover:bg-amber-100"
-                >
-                  全部設為 10 個
-                </button>
-              </div>
-
+        {/* Tab 1: 訂單管理 */}
+        {activeTab === 'orders' && (
+          <div className="mt-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg font-bold text-stone-800">所有預約訂單列表</h2>
               <button
-                onClick={handleBatchSaveStock}
-                disabled={isSaving}
-                className="bg-amber-800 text-white font-bold px-6 py-2 rounded-lg hover:bg-amber-900 transition shadow disabled:bg-gray-400"
+                onClick={fetchOrders}
+                className="text-xs bg-stone-200 hover:bg-stone-300 px-3 py-1.5 rounded-lg transition"
               >
-                {isSaving ? '儲存中...' : '💾 一鍵儲存今日所有庫存'}
+                🔄 重新整理
               </button>
             </div>
 
-            {/* 新增麵包品項 (含檔案上傳) */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">➕ 新增麵包品項</h2>
-              <form onSubmit={handleAddProduct} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <input
-                  type="text"
-                  placeholder="麵包名稱 (例: 招牌生吐司)"
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  className="border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  required
-                />
-                <input
-                  type="number"
-                  placeholder="單價 ($)"
-                  value={newPrice}
-                  onChange={(e) => setNewPrice(e.target.value)}
-                  className="border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  required
-                />
-                <input
-                  type="number"
-                  placeholder="初始庫存"
-                  value={newStock}
-                  onChange={(e) => setNewStock(e.target.value)}
-                  className="border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                  required
-                />
-                
-                <input
-                  type="text"
-                  placeholder="麵包簡介 (例: 香濃奶香，口感軟綿)"
-                  value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value)}
-                  className="border rounded-lg p-2.5 text-sm sm:col-span-3 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                />
+            {loading ? (
+              <div className="text-center py-12 text-stone-400 text-sm">載入訂單中...</div>
+            ) : orders.length === 0 ? (
+              <div className="text-center py-12 text-stone-400 text-sm">目前尚無預約訂單</div>
+            ) : (
+              <div className="space-y-4">
+                {orders.map((o) => {
+                  const itemsList = Array.isArray(o.items) ? o.items : [];
 
-                {/* 麵包照片選擇區塊 */}
-                <div className="sm:col-span-3 border-t pt-4 mt-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    上傳麵包商品照片 (建議尺寸: 1:1 正方形, 上限 5MB)
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-amber-100 file:text-amber-900 hover:file:bg-amber-200 cursor-pointer"
-                  />
-                  {imagePreview && (
-                    <div className="mt-3 relative w-32 h-32 border rounded-lg overflow-hidden">
-                      <img src={imagePreview} alt="麵包照片預覽" className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => { setSelectedFile(null); setImagePreview(null); }}
-                        className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 text-xs hover:bg-red-700"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-                </div>
+                  return (
+                    <div
+                      key={o.id}
+                      className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm flex flex-col md:flex-row justify-between gap-4"
+                    >
+                      <div className="space-y-2 flex-1">
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-amber-900 text-lg">
+                            #{o.id} {o.customer_name}
+                          </span>
+                          <span className="text-xs px-2.5 py-0.5 rounded-full bg-stone-100 border border-stone-200 font-medium text-stone-600">
+                            {o.pickup_type}
+                          </span>
+                          <span className="text-xs text-stone-400">
+                            預約日期: {o.pickup_date}
+                          </span>
+                        </div>
 
-                <button
-                  type="submit"
-                  disabled={isUploading}
-                  className="bg-amber-800 text-white font-bold py-3 px-4 rounded-lg hover:bg-amber-900 transition sm:col-span-3 disabled:bg-gray-400 mt-2"
-                >
-                  {isUploading ? '照片上傳與新增中...' : '確認新增商品'}
-                </button>
-              </form>
-            </div>
+                        <div className="text-xs text-stone-500">
+                          連絡電話: <span className="font-semibold text-stone-700">{o.customer_phone}</span>
+                        </div>
 
-            {/* 現有商品列表 */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <h2 className="text-lg font-bold text-gray-800 mb-4">麵包目錄列表</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-gray-600">
-                  <thead className="bg-gray-50 text-gray-700 uppercase border-b">
-                    <tr>
-                      <th className="p-3">照片</th>
-                      <th className="p-3">狀態</th>
-                      <th className="p-3">品名</th>
-                      <th className="p-3">單價</th>
-                      <th className="p-3">今日庫存</th>
-                      <th className="p-3">操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.map((p) => (
-                      <tr key={p.id} className={`border-b ${!p.is_active ? 'bg-gray-100/60 opacity-60' : 'hover:bg-gray-50'}`}>
-                        <td className="p-3">
-                          {p.image_url ? (
-                            <img src={p.image_url} alt={p.name} className="w-12 h-12 object-cover rounded-lg" />
-                          ) : (
-                            <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-400">無照片</div>
-                          )}
-                        </td>
-                        <td className="p-3">
+                        {/* 品項清單 */}
+                        <div className="bg-stone-50 p-3 rounded-xl border border-stone-100 text-xs space-y-1">
+                          {itemsList.map((item: OrderItem, idx: number) => (
+                            <div key={idx} className="flex justify-between">
+                              <span>{item.name} × {item.quantity}</span>
+                              <span className="font-semibold">${item.price * item.quantity}</span>
+                            </div>
+                          ))}
+                          <div className="border-t border-stone-200 pt-1 text-right font-bold text-stone-800 text-sm">
+                            總計: ${o.total_amount} 元
+                          </div>
+                        </div>
+
+                        {o.note && (
+                          <div className="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg">
+                            備註: {o.note}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 照片與狀態控制區 */}
+                      <div className="flex flex-col justify-between items-end gap-3 min-w-[180px]">
+                        {o.image_url ? (
                           <button
-                            onClick={() => handleToggleActive(p.id, p.is_active)}
-                            className={`px-3 py-1 rounded-full text-xs font-bold ${
-                              p.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'
-                            }`}
+                            type="button"
+                            onClick={() => setModalImage(o.image_url)}
+                            className="relative group w-20 h-20 rounded-xl overflow-hidden border border-stone-200"
                           >
-                            {p.is_active ? '販售中' : '已下架'}
+                            <img src={o.image_url} alt="附件" className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-white text-[10px] transition">
+                              點擊放大
+                            </div>
                           </button>
-                        </td>
-                        <td className="p-3 font-semibold text-gray-800">{p.name}</td>
-                        <td className="p-3">${p.price}</td>
-                        <td className="p-3">
-                          <input
-                            type="number"
-                            min="0"
-                            value={p.stock}
-                            onChange={(e) => handleLocalStockChange(p.id, parseInt(e.target.value) || 0)}
-                            className="w-24 border border-gray-300 rounded-md p-1.5 text-center font-bold text-amber-900 focus:ring-2 focus:ring-amber-500 focus:outline-none"
-                          />
-                        </td>
-                        <td className="p-3">
-                          <button onClick={() => handleDeleteProduct(p.id)} className="text-red-600 hover:underline text-xs">
-                            刪除
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        ) : (
+                          <span className="text-xs text-stone-300">無參考照片</span>
+                        )}
+
+                        <div className="w-full">
+                          <label className="block text-[10px] font-bold text-stone-400 mb-1">訂單狀態</label>
+                          <select
+                            value={o.status}
+                            onChange={(e) => handleUpdateOrderStatus(o.id, e.target.value)}
+                            className="w-full bg-stone-50 border border-stone-200 rounded-lg px-2 py-1.5 text-xs font-bold text-stone-700 focus:outline-none"
+                          >
+                            <option value="待處理">🟡 待處理</option>
+                            <option value="處理中">🔵 處理中</option>
+                            <option value="已完成">🟢 已完成</option>
+                            <option value="已取消">🔴 已取消</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
+            )}
           </div>
         )}
 
-        {activeTab === 'orders' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">客戶訂單紀錄</h2>
-            <div className="space-y-4">
-              {orders.map((o) => (
-                <div key={o.id} className="border rounded-lg p-4 bg-amber-50/30">
-                  <div className="flex flex-col sm:flex-row justify-between border-b pb-2 mb-2 gap-2">
-                    <div>
-                      <span className="font-bold text-amber-900 mr-2">訂單 #{o.id}</span>
-                      <span className="text-gray-700 font-semibold">{o.customer_name}</span> ({o.customer_phone})
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      下單時間：{new Date(o.created_at).toLocaleString()}
-                    </div>
-                  </div>
-                  <div className="text-sm space-y-1">
-                    <p><span className="text-gray-500">取貨方式：</span>{o.pickup_type} | <span className="text-gray-500">取貨日期：</span>{o.pickup_date}</p>
-                    <p><span className="text-gray-500">訂購明細：</span></p>
-                    <ul className="list-disc pl-5 text-xs text-gray-600">
-                      {o.items?.map((item: any, idx: number) => (
-                        <li key={idx}>
-                          {item.name} x {item.quantity} 個 (${item.price} / 個)
-                        </li>
-                      ))}
-                    </ul>
-                    <p className="font-bold text-amber-900 pt-2 text-right">總金額：${o.total_amount} 元</p>
-                  </div>
+        {/* Tab 2: 商品管理 */}
+        {activeTab === 'products' && (
+          <div className="mt-6 space-y-8">
+            {/* 新增商品表單 */}
+            <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm">
+              <h3 className="font-bold text-stone-800 mb-4 flex items-center gap-2">
+                <span>➕</span> 新增烘焙麵包
+              </h3>
+              <form onSubmit={handleAddProduct} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 mb-1">麵包名稱</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="例: 法式蒜味麵包"
+                    value={newProdName}
+                    onChange={(e) => setNewProdName(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none"
+                  />
                 </div>
-              ))}
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 mb-1">價格 ($)</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="例: 85"
+                    value={newProdPrice}
+                    onChange={(e) => setNewProdPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 mb-1">每日庫存量</label>
+                  <input
+                    type="number"
+                    required
+                    placeholder="例: 30"
+                    value={newProdStock}
+                    onChange={(e) => setNewProdStock(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-stone-600 mb-1">圖片網址 (URL)</label>
+                  <input
+                    type="text"
+                    placeholder="例: https://images.unsplash.com/..."
+                    value={newProdImageUrl}
+                    onChange={(e) => setNewProdImageUrl(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-bold text-stone-600 mb-1">商品描述</label>
+                  <textarea
+                    rows={2}
+                    placeholder="簡單介紹這款麵包的風味與口感..."
+                    value={newProdDesc}
+                    onChange={(e) => setNewProdDesc(e.target.value)}
+                    className="w-full bg-stone-50 border border-stone-200 rounded-xl px-3 py-2 text-xs focus:outline-none"
+                  />
+                </div>
+                <div className="sm:col-span-2 text-right">
+                  <button
+                    type="submit"
+                    className="bg-amber-800 text-amber-50 font-bold px-6 py-2 rounded-xl hover:bg-amber-900 text-xs transition"
+                  >
+                    儲存並上架麵包
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* 商品清單列表 */}
+            <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm">
+              <h3 className="font-bold text-stone-800 mb-4">現有麵包清單</h3>
+              <div className="divide-y divide-stone-100">
+                {products.map((p) => (
+                  <div key={p.id} className="py-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      {p.image_url ? (
+                        <img src={p.image_url} alt={p.name} className="w-12 h-12 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-12 h-12 bg-stone-100 rounded-lg flex items-center justify-center text-xs text-stone-400">🥐</div>
+                      )}
+                      <div>
+                        <div className="font-bold text-stone-800 text-sm">{p.name}</div>
+                        <div className="text-xs text-stone-400">${p.price} 元 ‧ 庫存 {p.stock} 個</div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleProductActive(p.id, p.is_active)}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-bold transition ${
+                        p.is_active
+                          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          : 'bg-stone-200 text-stone-600 hover:bg-stone-300'
+                      }`}
+                    >
+                      {p.is_active ? '上架中' : '已下架'}
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* 照片放大 Modal */}
+      {modalImage && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+          <div className="relative max-w-2xl w-full bg-white rounded-2xl overflow-hidden p-2">
+            <button
+              onClick={() => setModalImage(null)}
+              className="absolute top-4 right-4 bg-stone-900/80 text-white rounded-full p-2 text-xs hover:bg-stone-900 z-10"
+            >
+              ✕
+            </button>
+            <img src={modalImage} alt="放大照片" className="w-full max-h-[80vh] object-contain rounded-xl" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

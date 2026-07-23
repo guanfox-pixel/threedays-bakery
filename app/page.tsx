@@ -1,5 +1,14 @@
 'use client';
 
+// 強制 Next.js 將此頁面視為動態渲染，防止 npm run build 時因 Supabase 靜態預擷取失敗而報錯
+export const dynamic = 'force-dynamic';
+
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
+
+// ... (其餘原本的 app/page.tsx 程式碼保持不變)
+'use client';
+
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 

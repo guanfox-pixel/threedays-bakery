@@ -11,3 +11,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // 3. 初始化 Supabase 用戶端實例並匯出
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
