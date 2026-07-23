@@ -127,37 +127,58 @@ export default function AdminPage() {
     }
   };
 
-  // 6. 新增商品
-  const handleAddProduct = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newProdName || newProdPrice === '' || newProdStock === '') {
-      alert('請填寫完整商品名稱、價格與庫存！');
+  // 6. 新增商品 (修復與強化版)
+const handleAddProduct = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  // 欄位基礎驗證
+  if (!newProdName.trim()) {
+    alert('請填寫麵包名稱！');
+    return;
+  }
+  if (newProdPrice === '' || isNaN(Number(newProdPrice))) {
+    alert('請填寫正確的價格數字！');
+    return;
+  }
+  if (newProdStock === '' || isNaN(Number(newProdStock))) {
+    alert('請填寫正確的庫存數字！');
+    return;
+  }
+
+  try {
+    // 寫入 Supabase products 資料表
+    const { data, error } = await supabase.from('products').insert([
+      {
+        name: newProdName.trim(),
+        description: newProdDesc.trim(),
+        price: Number(newProdPrice),
+        stock: Number(newProdStock),
+        image_url: newProdImageUrl.trim(),
+        is_active: true,
+      },
+    ]).select();
+
+    if (error) {
+      console.error('新增商品失敗 Error:', error);
+      alert(`❌ 新增商品失敗：${error.message} (${error.details || '請確認 Supabase RLS 權限'})`);
       return;
     }
 
-    const { error } = await supabase.from('products').insert([
-      {
-        name: newProdName,
-        description: newProdDesc,
-        price: Number(newProdPrice),
-        stock: Number(newProdStock),
-        image_url: newProdImageUrl,
-        is_active: true,
-      },
-    ]);
-
-    if (error) {
-      alert(`新增商品失敗: ${error.message}`);
-    } else {
-      alert('🎉 成功新增麵包商品！');
-      setNewProdName('');
-      setNewProdDesc('');
-      setNewProdPrice('');
-      setNewProdStock('');
-      setNewProdImageUrl('');
-      fetchProducts();
-    }
-  };
+    alert('🎉 成功新增麵包商品！');
+    // 清空表單
+    setNewProdName('');
+    setNewProdDesc('');
+    setNewProdPrice('');
+    setNewProdStock('');
+    setNewProdImageUrl('');
+    
+    // 重新載入商品列表
+    fetchProducts();
+  } catch (err: any) {
+    console.error('系統發生例外錯誤:', err);
+    alert(`系統發生未預期錯誤：${err.message}`);
+  }
+};
 
   // 未登入畫面
   if (!isAuthenticated) {
