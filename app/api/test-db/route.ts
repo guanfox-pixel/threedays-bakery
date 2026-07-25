@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
+// 強制 Next.js 將此 API 視為完全動態路由，跳過 npm run build 靜態預先執行
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
-    // 嘗試向 Supabase products 資料表進行讀取測試
     const { data, error, count } = await supabase
       .from('products')
       .select('*', { count: 'exact', head: true });
@@ -12,11 +14,10 @@ export async function GET() {
       return NextResponse.json({
         status: 400,
         success: false,
-        message: '❌ Supabase 資料庫回應錯誤！',
+        message: '❌ Supabase 資料庫回應錯誤',
         errorDetails: {
           code: error.code,
           message: error.message,
-          hint: error.hint || '請確認是否已設定 Supabase RLS 權限或 API Key 格式。',
         },
       });
     }
@@ -34,7 +35,7 @@ export async function GET() {
     return NextResponse.json({
       status: 500,
       success: false,
-      message: '💥 連線發生例外中斷（Failed to fetch）',
+      message: '💥 連線發生例外中斷',
       error: err.message,
     });
   }
