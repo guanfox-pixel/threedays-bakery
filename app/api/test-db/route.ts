@@ -1,41 +1,39 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
-// 強制 Next.js 將此 API 視為完全動態路由，跳過 npm run build 靜態預先執行
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const { data, error, count } = await supabase
+    // 測試對 products 資料表進行讀取
+    const { data: products, error: readError } = await supabase
       .from('products')
-      .select('*', { count: 'exact', head: true });
+      .select('*')
+      .limit(5);
 
-    if (error) {
+    if (readError) {
       return NextResponse.json({
         status: 400,
         success: false,
-        message: '❌ Supabase 資料庫回應錯誤',
-        errorDetails: {
-          code: error.code,
-          message: error.message,
-        },
+        message: '❌ RLS 權限拒絕或資料表不存在！',
+        error: readError.message,
+        hint: '請至 Supabase SQL Editor 執行 RLS 開放腳本。',
       });
     }
 
     return NextResponse.json({
       status: 200,
       success: true,
-      message: '🎉 成功連接至 Supabase 資料庫！',
-      dataInfo: {
-        productCount: count ?? 0,
-      },
+      message: '🎉 恭喜！.env.local 與 Supabase 資料庫連線完全打通且 RLS 權限正常！',
+      dataCount: products ? products.length : 0,
+      sampleData: products,
       timestamp: new Date().toISOString(),
     });
   } catch (err: any) {
     return NextResponse.json({
       status: 500,
       success: false,
-      message: '💥 連線發生例外中斷',
+      message: '💥 網路請求例外失敗',
       error: err.message,
     });
   }
