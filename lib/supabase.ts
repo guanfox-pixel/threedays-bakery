@@ -8,16 +8,20 @@ const getCleanSupabaseUrl = (rawUrl?: string): string => {
   return rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
 };
 
+// 1. 同時讀取 PUBLISHABLE_KEY 與 ANON_KEY，避免命名不一致問題
 const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-const rawKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const rawKey =
+  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY;
 
 const supabaseUrl = getCleanSupabaseUrl(rawUrl);
 const supabaseAnonKey = rawKey || 'placeholder-key';
 
-// 建立全域 Supabase 客戶端實例
+// 2. 建立全域 Supabase 客戶端實例
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// 診斷函式
+// 3. 診斷函式
 export const checkSupabaseKeyStatus = () => {
   const isUrlValid = supabaseUrl.includes('.supabase.co') && !supabaseUrl.includes('placeholder');
   const isKeyValid =
@@ -28,7 +32,7 @@ export const checkSupabaseKeyStatus = () => {
     isUrlValid,
     isKeyValid,
     urlValue: isUrlValid ? supabaseUrl : '尚未設定有效專案 URL',
-    keyPrefix: isKeyValid ? `${supabaseAnonKey.substring(0, 15)}...` : '尚未設定有效 ANON Key',
+    keyPrefix: isKeyValid ? `${supabaseAnonKey.substring(0, 15)}...` : '尚未設定有效 PUBLISHABLE/ANON Key',
     keyLength: supabaseAnonKey.length,
   };
 };

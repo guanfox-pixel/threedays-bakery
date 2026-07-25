@@ -135,7 +135,7 @@ export default function AdminPage() {
     }
   };
 
-  // 6. 新增商品
+// 6. 新增商品
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -181,9 +181,20 @@ export default function AdminPage() {
       setNewProdStock('');
       setNewProdImageUrl('');
       fetchProducts();
+      
     } catch (err: any) {
       console.error('系統發生例外錯誤:', err);
-      alert(`系統發生未預期錯誤：${err.message}`);
+      
+      // 🌟 新增：針對擴充功能攔截或網路連線失敗的精確捕捉
+      if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        alert(
+          '❌ 網路請求被阻擋 (Failed to fetch)：\n\n' +
+          '系統偵測到與 Supabase 資料庫的連線被瀏覽器攔截。這通常是因為您安裝了廣告攔截器 (AdBlock) 或其他擴充功能。\n\n' +
+          '👉 建議解決方案：請暫時關閉擴充功能，或使用「無痕模式」重新操作。'
+        );
+      } else {
+        alert(`系統發生未預期錯誤：${err.message}`);
+      }
     }
   };
 
