@@ -1,11 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 輔助函式：清理網址格式
+// 清理 URL 格式輔助函式
 const getCleanSupabaseUrl = (rawUrl?: string): string => {
   if (!rawUrl || !rawUrl.startsWith('http')) {
     return 'https://placeholder.supabase.co';
   }
-  return rawUrl.replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
+  // 移除尾端多餘斜線與 rest 路徑
+  return rawUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
 };
 
 const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -14,26 +15,24 @@ const rawKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 const supabaseUrl = getCleanSupabaseUrl(rawUrl);
-const supabaseAnonKey =
-  rawKey && rawKey.length > 20
-    ? rawKey
-    : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder';
+const supabaseAnonKey = (rawKey || '').trim() || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder';
 
-// 1. 全域 Supabase 客戶端實例
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// 建立全域 Supabase 客戶端實例，顯式設定 fetch 屬性
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false, // 避免無效 Session 殘留導致 Fetch 失敗
+  },
+});
 
-// 2. 補全導出 app/admin/page.tsx 所需的診斷函式
 export const checkSupabaseKeyStatus = () => {
   const isUrlValid = supabaseUrl.includes('.supabase.co') && !supabaseUrl.includes('placeholder');
-  const isKeyValid =
-    (supabaseAnonKey.startsWith('eyJ') && supabaseAnonKey.length > 80) ||
-    (supabaseAnonKey.startsWith('sb_publishable_') && supabaseAnonKey.length > 20);
+  const isKeyValid = supabaseAnonKey.length > 20;
 
   return {
     isUrlValid,
     isKeyValid,
     urlValue: isUrlValid ? supabaseUrl : '尚未設定有效專案 URL',
-    keyPrefix: isKeyValid ? `${supabaseAnonKey.substring(0, 15)}...` : '尚未設定有效 ANON Key',
+    keyPrefix: isKeyValid ? `${supabaseAnonKey.substring(0, 15)}...` : '尚未設定有效 Key',
     keyLength: supabaseAnonKey.length,
   };
 };

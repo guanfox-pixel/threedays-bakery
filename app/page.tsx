@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 
 interface Product {
   id: number;
@@ -18,26 +17,23 @@ export default function HomePage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
-  // 1. 向 Supabase 抓取產品清單
+  // 1. 改為呼叫我們自己的 Server Side API 代理，徹底避免 TypeError: Failed to fetch
   const fetchProducts = async () => {
     setLoading(true);
     setErrorMsg('');
 
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .order('id', { ascending: true });
+      const res = await fetch('/api/products');
+      const result = await res.json();
 
-      if (error) {
-        console.error('抓取商品失敗:', error);
-        setErrorMsg(`無法讀取資料庫商品：${error.message}`);
-      } else if (data) {
-        setProducts(data);
+      if (!result.success) {
+        setErrorMsg(`無法讀取商品：${result.message}`);
+      } else {
+        setProducts(result.data);
       }
     } catch (err: any) {
-      console.error('網路連線例外:', err);
-      setErrorMsg(`連線失敗：${err.message || '請確認網路與連線設定'}`);
+      console.error('網絡連線失敗:', err);
+      setErrorMsg(`連線失敗：${err.message || '請確認網路狀態'}`);
     } finally {
       setLoading(false);
     }
@@ -57,14 +53,12 @@ export default function HomePage() {
       </header>
 
       <section className="max-w-5xl mx-auto">
-        {/* 載入中狀態 */}
         {loading && (
           <div className="text-center py-12 text-stone-500">
             <p className="animate-pulse">正在讀取今日新鮮麵包資訊...</p>
           </div>
         )}
 
-        {/* 錯誤提示 */}
         {errorMsg && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-xl mb-6 text-center">
             <p className="font-semibold">{errorMsg}</p>
@@ -77,14 +71,12 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* 無商品顯示 */}
         {!loading && !errorMsg && products.length === 0 && (
           <div className="text-center py-12 bg-white rounded-2xl shadow-sm border border-stone-200">
             <p className="text-stone-500">目前尚無上架麵包，請稍後再試！</p>
           </div>
         )}
 
-        {/* 麵包商品卡片牆 */}
         {!loading && products.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {products.map((item) => (
