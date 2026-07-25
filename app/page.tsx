@@ -58,7 +58,7 @@ export default function HomePage() {
     fetchProducts();
   }, []);
 
-  // 2. 購物車數量控制 (無庫存上限限制)
+  // 2. 購物車數量控制
   const updateCartQuantity = (productId: number, delta: number) => {
     setCart((prev) => {
       const currentQty = prev[productId] || 0;
@@ -126,7 +126,7 @@ export default function HomePage() {
       if (error) {
         alert(`❌ 預約失敗：${error.message}`);
       } else {
-        // 發送 Telegram 推播
+        // 發送 Telegram 店家推播
         fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -248,100 +248,139 @@ export default function HomePage() {
             ))}
         </section>
 
-        {/* 右側：購物車與預約單 */}
-        <section className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200 h-fit sticky top-6">
-          <h2 className="text-lg md:text-xl font-bold text-amber-950 mb-4">🛒 預約結帳單</h2>
+        {/* 右側：預訂注意事項 + 購物車預約結帳單 */}
+        <section className="space-y-6 h-fit sticky top-6">
+          {/* 🌟 核心新增：預訂注意事項卡片 */}
+          <div className="bg-amber-50/80 p-5 rounded-2xl border border-amber-200/80 shadow-sm text-stone-800">
+            <h3 className="font-bold text-amber-950 text-base mb-3 flex items-center border-b border-amber-200/60 pb-2">
+              <span className="mr-1.5">📌</span> 預訂注意事項
+            </h3>
 
-          {cartItems.length === 0 ? (
-            <p className="text-stone-400 text-xs sm:text-sm py-4 text-center">尚未選擇任何麵包品項</p>
-          ) : (
-            <div className="divide-y divide-stone-100 mb-4">
-              {cartItems.map((item) => (
-                <div key={item.id} className="py-2 flex justify-between text-xs sm:text-sm">
-                  <span>
-                    {item.name} x {item.quantity}
-                  </span>
-                  <span className="font-semibold text-amber-900">
-                    ${item.price * item.quantity}
-                  </span>
+            <div className="space-y-2.5 text-xs text-stone-700 leading-relaxed">
+              <div className="font-bold text-rose-800 bg-rose-50 p-2 rounded-lg border border-rose-200 text-center space-y-0.5">
+                <p>《不接受當日預訂》</p>
+                <p>《當日請現場購買》</p>
+              </div>
+
+              <div className="space-y-1 pt-1">
+                <p className="font-bold text-amber-900">▪ 預訂未滿 2000 元：</p>
+                <p className="pl-3 text-stone-600">
+                  請直接至現場選購（12:00 - 13:00 品項齊全）
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <p className="font-bold text-amber-900">▪ 滿 2000 元以上 或 單品項 20 個：</p>
+                <p className="pl-3 text-stone-600">
+                  需提前 2 天預訂，付款成功即完成訂單
+                </p>
+              </div>
+
+              <hr className="border-amber-200/60 my-2" />
+
+              <ul className="space-y-1.5 text-stone-600 pl-1 list-disc list-inside text-[11px]">
+                <li>提早 2 天前預訂付款，若無提前預訂，恕不受理。</li>
+                <li>無外送服務，請至<strong>復興店</strong>取餐。</li>
+                <li>取餐時段為：<strong>14:00 ～ 18:00</strong>。</li>
+                <li>月餅禮盒預訂 <strong>1 盒起訂</strong>。</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* 預約結帳單 */}
+          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
+            <h2 className="text-lg md:text-xl font-bold text-amber-950 mb-4">🛒 預約結帳單</h2>
+
+            {cartItems.length === 0 ? (
+              <p className="text-stone-400 text-xs sm:text-sm py-4 text-center">尚未選擇任何麵包品項</p>
+            ) : (
+              <div className="divide-y divide-stone-100 mb-4">
+                {cartItems.map((item) => (
+                  <div key={item.id} className="py-2 flex justify-between text-xs sm:text-sm">
+                    <span>
+                      {item.name} x {item.quantity}
+                    </span>
+                    <span className="font-semibold text-amber-900">
+                      ${item.price * item.quantity}
+                    </span>
+                  </div>
+                ))}
+                <div className="pt-3 flex justify-between font-bold text-sm sm:text-base text-amber-950">
+                  <span>總計金額：</span>
+                  <span>${totalPrice} 元</span>
                 </div>
-              ))}
-              <div className="pt-3 flex justify-between font-bold text-sm sm:text-base text-amber-950">
-                <span>總計金額：</span>
-                <span>${totalPrice} 元</span>
               </div>
-            </div>
-          )}
+            )}
 
-          <form onSubmit={handleSubmitOrder} className="space-y-3 mt-4 pt-4 border-t border-stone-200">
-            <div>
-              <label className="block text-xs font-medium text-stone-600 mb-1">訂購人姓名 *</label>
-              <input
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="王小明"
-                className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-stone-600 mb-1">聯絡電話 *</label>
-              <input
-                type="tel"
-                value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="0912345678"
-                className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
+            <form onSubmit={handleSubmitOrder} className="space-y-3 mt-4 pt-4 border-t border-stone-200">
               <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">取貨方式</label>
-                <select
-                  value={pickupType}
-                  onChange={(e) => setPickupType(e.target.value)}
-                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
-                >
-                  <option value="到店自取">到店自取</option>
-                  <option value="宅配到府">宅配到府</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">預約取貨日 *</label>
+                <label className="block text-xs font-medium text-stone-600 mb-1">訂購人姓名 *</label>
                 <input
-                  type="date"
-                  value={pickupDate}
-                  onChange={(e) => setPickupDate(e.target.value)}
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="王小明"
                   className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
                   required
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-medium text-stone-600 mb-1">備註說明</label>
-              <input
-                type="text"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="如有特殊需求請註明"
-                className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
-              />
-            </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1">聯絡電話 *</label>
+                <input
+                  type="tel"
+                  value={customerPhone}
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="0912345678"
+                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
+                  required
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={submitting || cartItems.length === 0}
-              className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold text-xs sm:text-sm hover:bg-amber-900 transition disabled:bg-stone-300 mt-2"
-            >
-              {submitting ? '送出預約中...' : '送出麵包預約單'}
-            </button>
-          </form>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">取貨方式</label>
+                  <select
+                    value={pickupType}
+                    onChange={(e) => setPickupType(e.target.value)}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
+                  >
+                    <option value="到店自取 (復興店)">到店自取 (復興店)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">預約取貨日 *</label>
+                  <input
+                    type="date"
+                    value={pickupDate}
+                    onChange={(e) => setPickupDate(e.target.value)}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1">備註說明</label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="如有特殊需求請註明"
+                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting || cartItems.length === 0}
+                className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold text-xs sm:text-sm hover:bg-amber-900 transition disabled:bg-stone-300 mt-2"
+              >
+                {submitting ? '送出預約中...' : '送出麵包預約單'}
+              </button>
+            </form>
+          </div>
         </section>
       </div>
     </main>
