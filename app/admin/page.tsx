@@ -8,9 +8,9 @@ interface Product {
   name: string;
   description: string;
   price: number;
-  stock: number;
   image_url: string;
   category: string;
+  is_active: boolean;
 }
 
 interface Order {
@@ -36,11 +36,10 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 新增商品 State
+  // 新增商品 State (已完全刪除 stock 欄位)
   const [name, setName] = useState<string>('');
   const [desc, setDesc] = useState<string>('');
   const [price, setPrice] = useState<string>('');
-  const [stock, setStock] = useState<string>('');
   const [category, setCategory] = useState<string>('吐司類');
   const [customCategory, setCustomCategory] = useState<string>('');
   const [imageUrl, setImageUrl] = useState<string>('');
@@ -96,7 +95,34 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 🌟 1. 切換訂單狀態 (出貨/待處理)
+  // 🌟 核心功能：一鍵切換商品「上架 / 下架」狀態
+  const handleToggleProductActive = async (productId: number, currentIsActive: boolean) => {
+    const targetState = !currentIsActive;
+    try {
+      // 即時更新前端畫面 State
+      setProducts((prev) =>
+        prev.map((p) => (p.id === productId ? { ...p, is_active: targetState } : p))
+      );
+
+      // 更新 Supabase 資料庫
+      const { error } = await supabase
+        .from('products')
+        .update({ is_active: targetState })
+        .eq('id', productId);
+
+      if (error) {
+        alert(`❌ 更新狀態失敗：${error.message}`);
+        fetchData();
+      } else {
+        alert(targetState ? '🟢 已成功將商品設為【上架】！' : '🔴 已成功將商品設為【下架】！');
+      }
+    } catch (err: any) {
+      alert(`例外錯誤：${err.message}`);
+      fetchData();
+    }
+  };
+
+  // 訂單狀態切換
   const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
       setOrders((prev) =>
@@ -118,7 +144,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🌟 2. 將訂單丟入 / 還原垃圾桶 (軟刪除)
+  // 移至 / 還原垃圾桶
   const handleToggleTrash = async (orderId: number, targetIsDeleted: boolean) => {
     try {
       setOrders((prev) =>
@@ -142,7 +168,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🌟 3. 一鍵清空垃圾桶全部資料 (硬刪除)
+  // 一鍵清空垃圾桶
   const handleClearAllTrash = async () => {
     const trashedOrders = orders.filter((o) => o.is_deleted);
     if (trashedOrders.length === 0) {
@@ -150,7 +176,7 @@ export default function AdminPage() {
       return;
     }
 
-    if (!confirm(`⚠️ 確定要永久清空垃圾桶中的 ${trashedOrders.length} 筆訂單嗎？刪除後無法復原！`)) {
+    if (!confirm(`⚠️ 確定要永久清空垃圾桶中的 ${trashedOrders.length} 筆訂單嗎？`)) {
       return;
     }
 
@@ -169,7 +195,7 @@ export default function AdminPage() {
     }
   };
 
-  // 圖片上傳
+  // 圖片上傳至 Supabase Storage
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -213,11 +239,11 @@ export default function AdminPage() {
     }
   };
 
-  // 新增商品
+  // 新增商品 (已移除數量/庫存欄位)
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !price || !stock) {
-      alert('請填寫完整商品名稱、價格與庫存！');
+    if (!name.trim() || !price) {
+      alert('請填寫完整商品名稱與價格！');
       return;
     }
 
@@ -230,21 +256,19 @@ export default function AdminPage() {
           name: name.trim(),
           description: desc.trim(),
           price: Number(price),
-          stock: Number(stock),
           category: finalCategory,
           image_url: imageUrl.trim(),
-          is_active: true,
+          is_active: true, // 預設上架
         },
       ]);
 
       if (error) {
         alert(`❌ 上架失敗：${error.message}`);
       } else {
-        alert('🎉 成功上架麵包商品！');
+        alert('🎉 成功新增麵包商品！');
         setName('');
         setDesc('');
         setPrice('');
-        setStock('');
         setCategory('吐司類');
         setCustomCategory('');
         setImageUrl('');
@@ -257,7 +281,7 @@ export default function AdminPage() {
     }
   };
 
-  // 更新商品
+  // 更新商品 (已移除數量/庫存欄位)
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -269,7 +293,6 @@ export default function AdminPage() {
           name: editingProduct.name.trim(),
           description: editingProduct.description.trim(),
           price: Number(editingProduct.price),
-          stock: Number(editingProduct.stock),
           category: editingProduct.category.trim() || '未分類',
           image_url: editingProduct.image_url,
         })
@@ -314,7 +337,6 @@ export default function AdminPage() {
     );
   }
 
-  // 過濾正常與已進垃圾桶的訂單
   const activeOrders = orders.filter((o) => !o.is_deleted);
   const trashedOrders = orders.filter((o) => o.is_deleted);
 
@@ -368,6 +390,7 @@ export default function AdminPage() {
         {/* 頁籤 1：商品管理 */}
         {activeTab === 'products' && (
           <div className="space-y-10">
+            {/* 新增商品表單 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">➕ 新增麵包品項</h2>
               <form onSubmit={handleAddProduct} className="space-y-4">
@@ -420,29 +443,16 @@ export default function AdminPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">價格 (NTD) *</label>
-                    <input
-                      type="number"
-                      value={price}
-                      onChange={(e) => setPrice(e.target.value)}
-                      placeholder="45"
-                      className="w-full p-2.5 border border-stone-300 rounded-lg"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">每日庫存量 *</label>
-                    <input
-                      type="number"
-                      value={stock}
-                      onChange={(e) => setStock(e.target.value)}
-                      placeholder="15"
-                      className="w-full p-2.5 border border-stone-300 rounded-lg"
-                      required
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">價格 (NTD) *</label>
+                  <input
+                    type="number"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="45"
+                    className="w-full p-2.5 border border-stone-300 rounded-lg"
+                    required
+                  />
                 </div>
 
                 <div>
@@ -472,8 +482,9 @@ export default function AdminPage() {
               </form>
             </section>
 
+            {/* 已建立商品列表 (含上下架按鈕) */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-              <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已上架商品清單</h2>
+              <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已建立商品清單</h2>
               {loading ? (
                 <p className="text-stone-400">載入商品清單中...</p>
               ) : (
@@ -492,18 +503,42 @@ export default function AdminPage() {
                             <span className="text-[11px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-semibold">
                               {p.category || '未分類'}
                             </span>
+                            {/* 🌟 狀態標籤：顯示已上架或已下架 */}
+                            <span
+                              className={`text-[11px] px-2 py-0.5 rounded font-semibold ${
+                                p.is_active
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-stone-200 text-stone-600'
+                              }`}
+                            >
+                              {p.is_active ? '🟢 已上架' : '🔴 已下架'}
+                            </span>
                           </div>
                           <p className="text-xs text-stone-500">{p.description || '無描述'}</p>
-                          <p className="text-xs text-amber-800 font-semibold mt-1">單價: ${p.price} | 庫存: {p.stock}</p>
+                          <p className="text-xs text-amber-800 font-semibold mt-1">單價: ${p.price} 元</p>
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => setEditingProduct(p)}
-                        className="bg-amber-100 text-amber-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-200 transition"
-                      >
-                        ✏️ 編輯商品
-                      </button>
+                      <div className="flex items-center space-x-2">
+                        {/* 🌟 上下架切換按鈕 */}
+                        <button
+                          onClick={() => handleToggleProductActive(p.id, p.is_active)}
+                          className={`px-3 py-1.5 rounded-lg font-bold text-xs transition ${
+                            p.is_active
+                              ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                              : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          }`}
+                        >
+                          {p.is_active ? '下架商品' : '重新上架'}
+                        </button>
+
+                        <button
+                          onClick={() => setEditingProduct(p)}
+                          className="bg-amber-100 text-amber-900 px-3 py-1.5 rounded-lg font-bold text-xs hover:bg-amber-200 transition"
+                        >
+                          ✏️ 編輯
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -512,7 +547,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 頁籤 2：正常客戶預約單 */}
+        {/* 頁籤 2：客戶預約單 */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
@@ -594,7 +629,6 @@ export default function AdminPage() {
                               </button>
                             )}
 
-                            {/* 🌟 移至垃圾桶按鈕 */}
                             <button
                               onClick={() => handleToggleTrash(order.id, true)}
                               className="bg-stone-200 text-stone-700 text-xs px-2.5 py-1.5 rounded-lg font-bold hover:bg-rose-100 hover:text-rose-800 transition"
@@ -613,7 +647,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 🌟 頁籤 3：垃圾桶與一鍵清空 */}
+        {/* 頁籤 3：垃圾桶 */}
         {activeTab === 'trash' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <div className="flex justify-between items-center mb-6">
@@ -670,7 +704,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 編輯 Modal 彈窗 */}
+        {/* 編輯 Modal 彈窗 (已移除數量/庫存欄位) */}
         {editingProduct && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-stone-200">
@@ -716,27 +750,15 @@ export default function AdminPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-medium text-stone-600 mb-1">價格 (NTD)</label>
-                    <input
-                      type="number"
-                      value={editingProduct.price}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
-                      className="w-full p-2 border border-stone-300 rounded-lg text-sm"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-stone-600 mb-1">庫存量</label>
-                    <input
-                      type="number"
-                      value={editingProduct.stock}
-                      onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
-                      className="w-full p-2 border border-stone-300 rounded-lg text-sm"
-                      required
-                    />
-                  </div>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">價格 (NTD)</label>
+                  <input
+                    type="number"
+                    value={editingProduct.price}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-sm"
+                    required
+                  />
                 </div>
 
                 <div>
