@@ -12,13 +12,33 @@ interface Product {
   image_url: string;
 }
 
+interface Order {
+  id: number;
+  created_at: string;
+  customer_name: string;
+  customer_phone: string;
+  pickup_type: string;
+  pickup_date: string;
+  total_amount: number;
+  items: any[];
+  note: string;
+  status: string;
+}
+
 export default function AdminPage() {
+  // 1. 登入防護 State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState<string>('');
+
+  // 2. 標籤頁切換 State (products / orders)
+  const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
+
+  // 3. 資料清單 State
   const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 新增商品 State
+  // 4. 新增商品 State
   const [name, setName] = useState<string>('');
   const [desc, setDesc] = useState<string>('');
   const [price, setPrice] = useState<string>('');
@@ -27,15 +47,19 @@ export default function AdminPage() {
   const [uploadingImage, setUploadingImage] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // 🌟 編輯商品專用 State (null 代表未處於編輯狀態)
+  // 5. 編輯商品 Modal State
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editUploadingImage, setEditUploadingImage] = useState<boolean>(false);
 
+  // 檢查登入狀態
   useEffect(() => {
     const loggedIn = sessionStorage.getItem('threedays_admin_logged');
-    if (loggedIn === 'true') setIsAuthenticated(true);
+    if (loggedIn === 'true') {
+      setIsAuthenticated(true);
+    }
   }, []);
 
+  // 處理密碼登入
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput === 'threedays2026') {
@@ -46,18 +70,37 @@ export default function AdminPage() {
     }
   };
 
-  const fetchProducts = async () => {
+  // 登出處理
+  const handleLogout = () => {
+    sessionStorage.removeItem('threedays_admin_logged');
+    setIsAuthenticated(false);
+  };
+
+  // 抓取商品與預約單
+  const fetchData = async () => {
     setLoading(true);
-    const { data } = await supabase.from('products').select('*').order('id', { ascending: false });
-    if (data) setProducts(data);
-    setLoading(false);
+    try {
+      const [prodRes, orderRes] = await Promise.all([
+        supabase.from('products').select('*').order('id', { ascending: false }),
+        supabase.from('orders').select('*').order('created_at', { ascending: false }),
+      ]);
+
+      if (prodRes.data) setProducts(prodRes.data);
+      if (orderRes.data) setOrders(orderRes.data);
+    } catch (err) {
+      console.error('抓取資料失敗:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    if (isAuthenticated) fetchProducts();
+    if (isAuthenticated) {
+      fetchData();
+    }
   }, [isAuthenticated]);
 
-  // 新增商品圖片上傳
+  // 圖片上傳至 Supabase Storage
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -76,7 +119,7 @@ export default function AdminPage() {
 
       const { error: uploadError } = await supabase.storage
         .from('product-images')
-        .upload(fileName, file);
+        .upload(fileName, file, { cacheControl: '3600', upsert: true });
 
       if (uploadError) {
         alert(`❌ 圖片上傳失敗：${uploadError.message}`);
@@ -94,14 +137,14 @@ export default function AdminPage() {
       }
       alert('🎉 圖片上傳成功！');
     } catch (err: any) {
-      alert(`上傳發生例外：${err.message}`);
+      alert(`上傳例外：${err.message}`);
     } finally {
       if (isEdit) setEditUploadingImage(false);
       else setUploadingImage(false);
     }
   };
 
-  // 新增商品處理
+  // 新增商品
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price || !stock) {
@@ -131,7 +174,7 @@ export default function AdminPage() {
         setPrice('');
         setStock('');
         setImageUrl('');
-        fetchProducts();
+        fetchData();
       }
     } catch (err: any) {
       alert(`系統例外錯誤: ${err.message}`);
@@ -140,7 +183,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🌟 核心功能：更新已上架商品
+  // 更新商品
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -161,29 +204,34 @@ export default function AdminPage() {
         alert(`❌ 更新失敗：${error.message}`);
       } else {
         alert('🎉 成功更新麵包商品資訊！');
-        setEditingProduct(null); // 關閉編輯 modal
-        fetchProducts(); // 重新整理清單
+        setEditingProduct(null);
+        fetchData();
       }
     } catch (err: any) {
       alert(`更新發生例外：${err.message}`);
     }
   };
 
+  // 🔒 1. 未登入顯示密碼表單
   if (!isAuthenticated) {
     return (
       <main className="min-h-screen bg-stone-100 flex items-center justify-center p-6">
         <div className="bg-white p-8 rounded-2xl shadow-sm border border-stone-200 max-w-md w-full">
           <h1 className="text-2xl font-bold text-amber-950 mb-2 text-center">🔐 管理員登入</h1>
+          <p className="text-stone-500 text-sm text-center mb-6">請輸入後台管理密碼以繼續</p>
           <form onSubmit={handleLogin} className="space-y-4">
             <input
               type="password"
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               placeholder="請輸入密碼..."
-              className="w-full p-3 border border-stone-300 rounded-lg"
+              className="w-full p-3 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
               required
             />
-            <button type="submit" className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold">
+            <button
+              type="submit"
+              className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold hover:bg-amber-900 transition"
+            >
               登入後台
             </button>
           </form>
@@ -192,125 +240,224 @@ export default function AdminPage() {
     );
   }
 
+  // 🔓 2. 已登入後台主介面
   return (
     <main className="min-h-screen bg-stone-100 p-6 md:p-10 text-stone-800">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-amber-950 mb-8">⚙️ threedays 後台商品管理系統</h1>
+      <div className="max-w-5xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl font-bold text-amber-950">⚙️ threedays 後台管理系統</h1>
+          <button
+            onClick={handleLogout}
+            className="text-sm bg-stone-200 text-stone-700 px-4 py-2 rounded-lg hover:bg-stone-300 transition"
+          >
+            登出
+          </button>
+        </div>
 
-        {/* 新增商品區塊 */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm mb-10 border border-stone-200">
-          <h2 className="text-xl font-bold text-amber-900 mb-4">➕ 新增麵包品項</h2>
-          <form onSubmit={handleAddProduct} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">麵包名稱 *</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="例如：日式鹽可頌"
-                className="w-full p-2.5 border border-stone-300 rounded-lg"
-                required
-              />
-            </div>
+        {/* 標籤頁切換按鈕 */}
+        <div className="flex space-x-4 mb-6 border-b border-stone-200 pb-4">
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`px-5 py-2.5 rounded-xl font-bold transition ${
+              activeTab === 'products'
+                ? 'bg-amber-800 text-white shadow-sm'
+                : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
+            }`}
+          >
+            🍞 商品管理與上架
+          </button>
+          <button
+            onClick={() => setActiveTab('orders')}
+            className={`px-5 py-2.5 rounded-xl font-bold transition ${
+              activeTab === 'orders'
+                ? 'bg-amber-800 text-white shadow-sm'
+                : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
+            }`}
+          >
+            📋 客戶預約單檢視 ({orders.length})
+          </button>
+        </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">商品描述</label>
-              <textarea
-                value={desc}
-                onChange={(e) => setDesc(e.target.value)}
-                placeholder="請輸入麵包口感或成分..."
-                className="w-full p-2.5 border border-stone-300 rounded-lg h-20"
-              />
-            </div>
+        {/* 頁籤 1：商品管理 */}
+        {activeTab === 'products' && (
+          <div className="space-y-10">
+            {/* 新增商品表單 */}
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+              <h2 className="text-xl font-bold text-amber-900 mb-4">➕ 新增麵包品項</h2>
+              <form onSubmit={handleAddProduct} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">麵包名稱 *</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="例如：日式鹽可頌"
+                    className="w-full p-2.5 border border-stone-300 rounded-lg"
+                    required
+                  />
+                </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">價格 (NTD) *</label>
-                <input
-                  type="number"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  placeholder="45"
-                  className="w-full p-2.5 border border-stone-300 rounded-lg"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">每日庫存量 *</label>
-                <input
-                  type="number"
-                  value={stock}
-                  onChange={(e) => setStock(e.target.value)}
-                  placeholder="15"
-                  className="w-full p-2.5 border border-stone-300 rounded-lg"
-                  required
-                />
-              </div>
-            </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">商品描述</label>
+                  <textarea
+                    value={desc}
+                    onChange={(e) => setDesc(e.target.value)}
+                    placeholder="請輸入麵包口感或成分..."
+                    className="w-full p-2.5 border border-stone-300 rounded-lg h-20"
+                  />
+                </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-1">上傳麵包照片</label>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleImageUpload(e, false)}
-                disabled={uploadingImage}
-                className="w-full p-2 border border-stone-300 rounded-lg text-sm bg-stone-50"
-              />
-              {uploadingImage && <p className="text-xs text-amber-800 mt-1 animate-pulse">圖片上傳中...</p>}
-              {imageUrl && (
-                <div className="mt-2">
-                  <img src={imageUrl} alt="預覽" className="w-20 h-20 object-cover rounded-lg border" />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">價格 (NTD) *</label>
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      placeholder="45"
+                      className="w-full p-2.5 border border-stone-300 rounded-lg"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">每日庫存量 *</label>
+                    <input
+                      type="number"
+                      value={stock}
+                      onChange={(e) => setStock(e.target.value)}
+                      placeholder="15"
+                      className="w-full p-2.5 border border-stone-300 rounded-lg"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">上傳麵包照片</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, false)}
+                    disabled={uploadingImage}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-sm bg-stone-50"
+                  />
+                  {uploadingImage && <p className="text-xs text-amber-800 mt-1 animate-pulse">圖片上傳 Supabase 中...</p>}
+                  {imageUrl && (
+                    <div className="mt-2">
+                      <img src={imageUrl} alt="預覽" className="w-20 h-20 object-cover rounded-lg border" />
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting || uploadingImage}
+                  className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold hover:bg-amber-900 transition disabled:bg-stone-300"
+                >
+                  {submitting ? '商品上架中...' : '確認上架商品'}
+                </button>
+              </form>
+            </section>
+
+            {/* 商品列表 */}
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+              <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已上架商品清單</h2>
+              {loading ? (
+                <p className="text-stone-400">載入商品清單中...</p>
+              ) : (
+                <div className="divide-y divide-stone-200">
+                  {products.map((p) => (
+                    <div key={p.id} className="py-4 flex justify-between items-center">
+                      <div className="flex items-center space-x-4">
+                        {p.image_url ? (
+                          <img src={p.image_url} alt={p.name} className="w-14 h-14 object-cover rounded-lg" />
+                        ) : (
+                          <div className="w-14 h-14 bg-stone-100 rounded-lg flex items-center justify-center text-xs text-stone-400">無圖</div>
+                        )}
+                        <div>
+                          <h4 className="font-bold text-stone-900">{p.name}</h4>
+                          <p className="text-xs text-stone-500">{p.description || '無描述'}</p>
+                          <p className="text-xs text-amber-800 font-semibold mt-1">單價: ${p.price} | 庫存: {p.stock}</p>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setEditingProduct(p)}
+                        className="bg-amber-100 text-amber-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-200 transition"
+                      >
+                        ✏️ 編輯商品
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
-            </div>
+            </section>
+          </div>
+        )}
 
-            <button
-              type="submit"
-              disabled={submitting || uploadingImage}
-              className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold hover:bg-amber-900 transition disabled:bg-stone-300"
-            >
-              {submitting ? '商品上架中...' : '確認上架商品'}
-            </button>
-          </form>
-        </section>
+        {/* 頁籤 2：預約單檢視 */}
+        {activeTab === 'orders' && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+            <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
+            {loading ? (
+              <p className="text-stone-400">載入預約單中...</p>
+            ) : orders.length === 0 ? (
+              <p className="text-stone-400">目前尚無任何預約訂單。</p>
+            ) : (
+              <div className="space-y-4">
+                {orders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="p-5 rounded-xl border border-stone-200 bg-stone-50 flex flex-col md:flex-row justify-between gap-4"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-3">
+                        <span className="font-bold text-lg text-amber-950">
+                          {order.customer_name}
+                        </span>
+                        <span className="text-stone-600 text-sm">📞 {order.customer_phone}</span>
+                        <span className="text-xs bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-semibold">
+                          {order.pickup_type}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-500">
+                        預約取貨日期：<strong className="text-stone-700">{order.pickup_date}</strong> | 
+                        下單時間：{new Date(order.created_at).toLocaleString('zh-TW')}
+                      </p>
+                      {order.note && (
+                        <p className="text-xs text-stone-600 bg-white p-2 rounded border border-stone-200 mt-2">
+                          備註：{order.note}
+                        </p>
+                      )}
+                      <div className="mt-3 pt-2 border-t border-stone-200">
+                        <p className="text-xs font-bold text-stone-700 mb-1">預約品項：</p>
+                        <ul className="text-xs space-y-1 text-stone-600">
+                          {order.items &&
+                            order.items.map((item: any, idx: number) => (
+                              <li key={idx}>
+                                • {item.name} × {item.quantity} (NTD ${item.price * item.quantity})
+                              </li>
+                            ))}
+                        </ul>
+                      </div>
+                    </div>
 
-        {/* 已上架商品清單與編輯按鈕 */}
-        <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-          <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已上架商品清單</h2>
-          {loading ? (
-            <p className="text-stone-400">載入商品清單中...</p>
-          ) : (
-            <div className="divide-y divide-stone-200">
-              {products.map((p) => (
-                <div key={p.id} className="py-4 flex justify-between items-center">
-                  <div className="flex items-center space-x-4">
-                    {p.image_url ? (
-                      <img src={p.image_url} alt={p.name} className="w-14 h-14 object-cover rounded-lg" />
-                    ) : (
-                      <div className="w-14 h-14 bg-stone-100 rounded-lg flex items-center justify-center text-xs text-stone-400">無圖</div>
-                    )}
-                    <div>
-                      <h4 className="font-bold text-stone-900">{p.name}</h4>
-                      <p className="text-xs text-stone-500">{p.description || '無描述'}</p>
-                      <p className="text-xs text-amber-800 font-semibold mt-1">單價: ${p.price} | 庫存: {p.stock}</p>
+                    <div className="flex flex-col justify-between items-end min-w-[120px]">
+                      <span className="text-xl font-bold text-amber-900">
+                        ${order.total_amount} 元
+                      </span>
+                      <span className="text-xs bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full font-bold">
+                        狀態：{order.status === 'pending' ? '待處理' : order.status}
+                      </span>
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
-                  {/* 🌟 編輯按鈕 */}
-                  <button
-                    onClick={() => setEditingProduct(p)}
-                    className="bg-amber-100 text-amber-900 px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-200 transition"
-                  >
-                    ✏️ 編輯商品
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* 🌟 編輯商品 Modal 彈窗 */}
+        {/* 編輯 Modal 彈窗 */}
         {editingProduct && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-stone-200">
