@@ -1,38 +1,29 @@
 import { createClient } from '@supabase/supabase-js';
 
-// 清理 URL 格式輔助函式
-const getCleanSupabaseUrl = (rawUrl?: string): string => {
-  if (!rawUrl || !rawUrl.startsWith('http')) {
-    return 'https://placeholder.supabase.co';
-  }
-  // 移除尾端多餘斜線與 rest 路徑
-  return rawUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '');
-};
-
+// 讀取正確的環境變數
 const rawUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const rawKey =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const rawKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-const supabaseUrl = getCleanSupabaseUrl(rawUrl);
-const supabaseAnonKey = (rawKey || '').trim() || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder';
+// 格式清理
+const cleanUrl = rawUrl ? rawUrl.trim().replace(/\/rest\/v1\/?$/, '').replace(/\/$/, '') : '';
+const cleanKey = rawKey ? rawKey.trim() : '';
 
-// 建立全域 Supabase 客戶端實例，顯式設定 fetch 屬性
+const supabaseUrl = cleanUrl || 'https://vjdspblbknwmkkojavtl.supabase.co';
+const supabaseAnonKey = cleanKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.placeholder';
+
+// 建立全域 Supabase Client
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    persistSession: false, // 避免無效 Session 殘留導致 Fetch 失敗
+    persistSession: false,
   },
 });
 
+// 金鑰狀態檢查函式
 export const checkSupabaseKeyStatus = () => {
-  const isUrlValid = supabaseUrl.includes('.supabase.co') && !supabaseUrl.includes('placeholder');
-  const isKeyValid = supabaseAnonKey.length > 20;
-
   return {
-    isUrlValid,
-    isKeyValid,
-    urlValue: isUrlValid ? supabaseUrl : '尚未設定有效專案 URL',
-    keyPrefix: isKeyValid ? `${supabaseAnonKey.substring(0, 15)}...` : '尚未設定有效 Key',
+    isUrlValid: supabaseUrl.includes('.supabase.co'),
+    isKeyValid: supabaseAnonKey.startsWith('eyJ') && supabaseAnonKey.length > 80,
+    urlValue: supabaseUrl,
     keyLength: supabaseAnonKey.length,
   };
 };

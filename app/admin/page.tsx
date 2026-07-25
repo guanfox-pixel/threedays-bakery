@@ -24,16 +24,25 @@ export default function AdminPage() {
   const [imageUrl, setImageUrl] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // 1. 取得所有商品
+  // 1. 取得所有商品清單
   const fetchProducts = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('products').select('*').order('id', { ascending: false });
-    if (error) {
-      alert(`讀取後台列表失敗: ${error.message}`);
-    } else if (data) {
-      setProducts(data);
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .order('id', { ascending: false });
+
+      if (error) {
+        console.error('讀取商品失敗:', error);
+      } else if (data) {
+        setProducts(data);
+      }
+    } catch (err) {
+      console.error('連線例外:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -64,17 +73,15 @@ export default function AdminPage() {
       ]).select();
 
       if (error) {
-        console.error('上架失敗:', error);
-        alert(`❌ 新增商品失敗：${error.message}\n提示：請確認已在 Supabase 執行 SQL RLS 開放腳本。`);
+        alert(`❌ 上架失敗：${error.message}`);
       } else {
         alert('🎉 成功上架麵包商品！');
-        // 清空表單
         setName('');
         setDesc('');
         setPrice('');
         setStock('');
         setImageUrl('');
-        fetchProducts(); // 重新整理列表
+        fetchProducts(); // 重新載入列表
       }
     } catch (err: any) {
       alert(`系統例外錯誤: ${err.message}`);
@@ -88,7 +95,7 @@ export default function AdminPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold text-amber-950 mb-8">⚙️ threedays 後台商品管理系統</h1>
 
-        {/* 上架表單 */}
+        {/* 新增商品表單 */}
         <section className="bg-white p-6 rounded-2xl shadow-sm mb-10 border border-stone-200">
           <h2 className="text-xl font-bold text-amber-900 mb-4">➕ 新增麵包品項</h2>
           <form onSubmit={handleAddProduct} className="space-y-4">
@@ -98,7 +105,7 @@ export default function AdminPage() {
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="例如：法式草莓可頌"
+                placeholder="例如：日式鹽可頌"
                 className="w-full p-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
@@ -109,7 +116,7 @@ export default function AdminPage() {
               <textarea
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
-                placeholder="請輸入麵包口感、成分或特色..."
+                placeholder="請輸入麵包口感或成分..."
                 className="w-full p-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 h-20"
               />
             </div>
@@ -121,7 +128,7 @@ export default function AdminPage() {
                   type="number"
                   value={price}
                   onChange={(e) => setPrice(e.target.value)}
-                  placeholder="65"
+                  placeholder="45"
                   className="w-full p-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
                 />
@@ -132,7 +139,7 @@ export default function AdminPage() {
                   type="number"
                   value={stock}
                   onChange={(e) => setStock(e.target.value)}
-                  placeholder="20"
+                  placeholder="15"
                   className="w-full p-2.5 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
                   required
                 />
@@ -155,18 +162,18 @@ export default function AdminPage() {
               disabled={submitting}
               className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold hover:bg-amber-900 transition disabled:bg-stone-400"
             >
-              {submitting ? '商品新增中...' : '確認上架商品'}
+              {submitting ? '商品上架中...' : '確認上架商品'}
             </button>
           </form>
         </section>
 
-        {/* 已上架商品列表 */}
+        {/* 商品列表 */}
         <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-          <h2 className="text-xl font-bold text-amber-900 mb-4">📋 目前已上架商品</h2>
+          <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已上架商品清單</h2>
           {loading ? (
             <p className="text-stone-400">載入商品清單中...</p>
           ) : products.length === 0 ? (
-            <p className="text-stone-400">目前尚無任何商品紀錄。</p>
+            <p className="text-stone-400">目前尚無商品，請在上方新增！</p>
           ) : (
             <div className="divide-y divide-stone-200">
               {products.map((p) => (
