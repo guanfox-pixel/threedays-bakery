@@ -8,7 +8,6 @@ interface Product {
   name: string;
   description: string;
   price: number;
-  stock: number;
   image_url: string;
   category: string;
   is_active: boolean;
@@ -32,7 +31,7 @@ export default function HomePage() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 1. 抓取商品清單
+  // 1. 抓取已上架商品清單 (is_active = true)
   const fetchProducts = async () => {
     setLoading(true);
     setErrorMsg('');
@@ -40,6 +39,7 @@ export default function HomePage() {
       const { data, error } = await supabase
         .from('products')
         .select('*')
+        .eq('is_active', true)
         .order('id', { ascending: true });
 
       if (error) {
@@ -58,11 +58,11 @@ export default function HomePage() {
     fetchProducts();
   }, []);
 
-  // 2. 購物車數量控制
-  const updateCartQuantity = (productId: number, delta: number, maxStock: number) => {
+  // 2. 購物車數量控制 (無庫存上限限制)
+  const updateCartQuantity = (productId: number, delta: number) => {
     setCart((prev) => {
       const currentQty = prev[productId] || 0;
-      const newQty = Math.max(0, Math.min(maxStock, currentQty + delta));
+      const newQty = Math.max(0, currentQty + delta);
       if (newQty === 0) {
         const newCart = { ...prev };
         delete newCart[productId];
@@ -79,7 +79,7 @@ export default function HomePage() {
 
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // 🌟 核心分區邏輯：將商品按 category 分組
+  // 分區邏輯：按 category 分組
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
     if (!acc[cat]) {
@@ -126,7 +126,7 @@ export default function HomePage() {
       if (error) {
         alert(`❌ 預約失敗：${error.message}`);
       } else {
-        // 發送 Telegram 店家推播
+        // 發送 Telegram 推播
         fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -166,7 +166,7 @@ export default function HomePage() {
       </header>
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* 左側：分區麵包點單區域 (2 欄) */}
+        {/* 左側：麵包點單區域 */}
         <section className="lg:col-span-2 space-y-8">
           {loading && <p className="text-stone-400 animate-pulse text-sm">載入麵包品項中...</p>}
           {errorMsg && <p className="text-red-500 font-semibold text-sm">{errorMsg}</p>}
@@ -175,16 +175,13 @@ export default function HomePage() {
             <p className="text-stone-400 text-sm">目前尚無上架商品，請至後台新增！</p>
           )}
 
-          {/* 🌟 按類別分區依序渲染 */}
           {!loading &&
             Object.keys(categorizedProducts).map((categoryName) => (
               <div key={categoryName} className="space-y-3">
-                {/* 類別區塊標題 */}
                 <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-200 pb-2 flex items-center">
                   <span className="mr-2">🥖</span> {categoryName}
                 </h2>
 
-                {/* 手機一排2個卡片網格 (grid-cols-2) */}
                 <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
                   {categorizedProducts[categoryName].map((item) => {
                     const qty = cart[item.id] || 0;
@@ -214,10 +211,7 @@ export default function HomePage() {
                             </p>
                             <div className="flex justify-between items-center mt-2">
                               <span className="text-amber-900 font-bold text-sm sm:text-base">
-                                ${item.price}
-                              </span>
-                              <span className="text-[10px] sm:text-xs text-stone-400">
-                                庫存: {item.stock}
+                                ${item.price} 元
                               </span>
                             </div>
                           </div>
@@ -230,7 +224,7 @@ export default function HomePage() {
                           </span>
                           <div className="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto justify-between sm:justify-end">
                             <button
-                              onClick={() => updateCartQuantity(item.id, -1, item.stock)}
+                              onClick={() => updateCartQuantity(item.id, -1)}
                               className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-stone-100 text-stone-700 font-bold hover:bg-stone-200 text-xs sm:text-sm flex items-center justify-center"
                             >
                               -
@@ -239,7 +233,7 @@ export default function HomePage() {
                               {qty}
                             </span>
                             <button
-                              onClick={() => updateCartQuantity(item.id, 1, item.stock)}
+                              onClick={() => updateCartQuantity(item.id, 1)}
                               className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-amber-800 text-white font-bold hover:bg-amber-900 text-xs sm:text-sm flex items-center justify-center"
                             >
                               +

@@ -24,12 +24,13 @@ interface Order {
   items: any[];
   note: string;
   status: string;
+  is_deleted?: boolean;
 }
 
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'trash'>('products');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -95,33 +96,80 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 🌟 核心修復：即時更新 State 與 Supabase 資料庫中的訂單狀態
+  // 🌟 1. 切換訂單狀態 (出貨/待處理)
   const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
-      // 1. 立即更新本地 orders State，讓畫面零延遲反應
-      setOrders((prevOrders) =>
-        prevOrders.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
       );
 
-      // 2. 發送更新請求至 Supabase
       const { error } = await supabase
         .from('orders')
         .update({ status: newStatus })
         .eq('id', orderId);
 
       if (error) {
-        alert(`❌ 更新訂單狀態失敗：${error.message}`);
-        fetchData(); // 發生錯誤時重新拉取舊資料
-      } else {
-        alert(`🎉 訂單狀態已成功更新為「${newStatus === 'completed' || newStatus === '已出貨' ? '已出貨' : '待處理'}」！`);
+        alert(`❌ 更新狀態失敗：${error.message}`);
+        fetchData();
       }
     } catch (err: any) {
-      alert(`系統例外錯誤：${err.message}`);
+      alert(`例外錯誤：${err.message}`);
       fetchData();
     }
   };
 
-  // 圖片上傳至 Supabase Storage
+  // 🌟 2. 將訂單丟入 / 還原垃圾桶 (軟刪除)
+  const handleToggleTrash = async (orderId: number, targetIsDeleted: boolean) => {
+    try {
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, is_deleted: targetIsDeleted } : o))
+      );
+
+      const { error } = await supabase
+        .from('orders')
+        .update({ is_deleted: targetIsDeleted })
+        .eq('id', orderId);
+
+      if (error) {
+        alert(`❌ 操作失敗：${error.message}`);
+        fetchData();
+      } else {
+        alert(targetIsDeleted ? '🗑️ 已將訂單移至垃圾桶' : '🎉 已成功還原訂單！');
+      }
+    } catch (err: any) {
+      alert(`例外錯誤：${err.message}`);
+      fetchData();
+    }
+  };
+
+  // 🌟 3. 一鍵清空垃圾桶全部資料 (硬刪除)
+  const handleClearAllTrash = async () => {
+    const trashedOrders = orders.filter((o) => o.is_deleted);
+    if (trashedOrders.length === 0) {
+      alert('垃圾桶目前沒有任何資料！');
+      return;
+    }
+
+    if (!confirm(`⚠️ 確定要永久清空垃圾桶中的 ${trashedOrders.length} 筆訂單嗎？刪除後無法復原！`)) {
+      return;
+    }
+
+    try {
+      const trashedIds = trashedOrders.map((o) => o.id);
+      const { error } = await supabase.from('orders').delete().in('id', trashedIds);
+
+      if (error) {
+        alert(`❌ 清空失敗：${error.message}`);
+      } else {
+        alert('💥 垃圾桶已全部清空！');
+        fetchData();
+      }
+    } catch (err: any) {
+      alert(`清空發生例外：${err.message}`);
+    }
+  };
+
+  // 圖片上傳
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -266,6 +314,10 @@ export default function AdminPage() {
     );
   }
 
+  // 過濾正常與已進垃圾桶的訂單
+  const activeOrders = orders.filter((o) => !o.is_deleted);
+  const trashedOrders = orders.filter((o) => o.is_deleted);
+
   return (
     <main className="min-h-screen bg-stone-100 p-6 md:p-10 text-stone-800">
       <div className="max-w-5xl mx-auto">
@@ -280,10 +332,10 @@ export default function AdminPage() {
         </div>
 
         {/* 標籤頁切換按鈕 */}
-        <div className="flex space-x-4 mb-6 border-b border-stone-200 pb-4">
+        <div className="flex space-x-3 mb-6 border-b border-stone-200 pb-4">
           <button
             onClick={() => setActiveTab('products')}
-            className={`px-5 py-2.5 rounded-xl font-bold transition ${
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition ${
               activeTab === 'products'
                 ? 'bg-amber-800 text-white shadow-sm'
                 : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
@@ -293,20 +345,29 @@ export default function AdminPage() {
           </button>
           <button
             onClick={() => setActiveTab('orders')}
-            className={`px-5 py-2.5 rounded-xl font-bold transition ${
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition ${
               activeTab === 'orders'
                 ? 'bg-amber-800 text-white shadow-sm'
                 : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
             }`}
           >
-            📋 客戶預約單檢視 ({orders.length})
+            📋 客戶預約單 ({activeOrders.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('trash')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition ${
+              activeTab === 'trash'
+                ? 'bg-rose-800 text-white shadow-sm'
+                : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-50'
+            }`}
+          >
+            🗑️ 垃圾桶 ({trashedOrders.length})
           </button>
         </div>
 
         {/* 頁籤 1：商品管理 */}
         {activeTab === 'products' && (
           <div className="space-y-10">
-            {/* 新增商品表單 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">➕ 新增麵包品項</h2>
               <form onSubmit={handleAddProduct} className="space-y-4">
@@ -341,7 +402,7 @@ export default function AdminPage() {
                         type="text"
                         value={customCategory}
                         onChange={(e) => setCustomCategory(e.target.value)}
-                        placeholder="請輸入自訂類別名稱 (如: 貝果類)"
+                        placeholder="請輸入自訂類別名稱"
                         className="w-full p-2.5 border border-stone-300 rounded-lg mt-2 text-sm"
                         required
                       />
@@ -411,7 +472,6 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 已上架商品列表 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已上架商品清單</h2>
               {loading ? (
@@ -452,18 +512,17 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 頁籤 2：預約單檢視與強健狀態切換 */}
+        {/* 頁籤 2：正常客戶預約單 */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
             {loading ? (
               <p className="text-stone-400">載入預約單中...</p>
-            ) : orders.length === 0 ? (
-              <p className="text-stone-400">目前尚無任何預約訂單。</p>
+            ) : activeOrders.length === 0 ? (
+              <p className="text-stone-400">目前尚無未處理或未出貨的訂單。</p>
             ) : (
               <div className="space-y-4">
-                {orders.map((order) => {
-                  // 🌟 強化判斷：支援 'completed' 與 '已出貨'
+                {activeOrders.map((order) => {
                   const isShipped = order.status === 'completed' || order.status === '已出貨';
                   return (
                     <div
@@ -502,8 +561,7 @@ export default function AdminPage() {
                         </div>
                       </div>
 
-                      {/* 右側狀態顯示與操作按鈕 */}
-                      <div className="flex flex-col justify-between items-end min-w-[140px]">
+                      <div className="flex flex-col justify-between items-end min-w-[150px]">
                         <span className="text-xl font-bold text-amber-900 mb-2 md:mb-0">
                           ${order.total_amount} 元
                         </span>
@@ -519,27 +577,94 @@ export default function AdminPage() {
                             狀態：{isShipped ? '✅ 已出貨' : '⏳ 待處理'}
                           </span>
 
-                          {/* 🌟 點擊即刻觸發狀態改變 */}
-                          {isShipped ? (
+                          <div className="flex items-center space-x-2">
+                            {isShipped ? (
+                              <button
+                                onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
+                                className="text-xs text-stone-500 underline hover:text-stone-800"
+                              >
+                                標記為待處理
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleUpdateOrderStatus(order.id, '已出貨')}
+                                className="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-800 transition shadow-sm"
+                              >
+                                改為已出貨
+                              </button>
+                            )}
+
+                            {/* 🌟 移至垃圾桶按鈕 */}
                             <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
-                              className="text-xs text-stone-500 underline hover:text-stone-800"
+                              onClick={() => handleToggleTrash(order.id, true)}
+                              className="bg-stone-200 text-stone-700 text-xs px-2.5 py-1.5 rounded-lg font-bold hover:bg-rose-100 hover:text-rose-800 transition"
+                              title="移至垃圾桶"
                             >
-                              標記為待處理
+                              🗑️
                             </button>
-                          ) : (
-                            <button
-                              onClick={() => handleUpdateOrderStatus(order.id, '已出貨')}
-                              className="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-800 transition shadow-sm"
-                            >
-                              改為已出貨
-                            </button>
-                          )}
+                          </div>
                         </div>
                       </div>
                     </div>
                   );
                 })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 🌟 頁籤 3：垃圾桶與一鍵清空 */}
+        {activeTab === 'trash' && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-rose-900">🗑️ 資源回收垃圾桶</h2>
+              {trashedOrders.length > 0 && (
+                <button
+                  onClick={handleClearAllTrash}
+                  className="bg-rose-800 text-white text-xs px-4 py-2 rounded-xl font-bold hover:bg-rose-900 transition shadow-sm"
+                >
+                  💥 一鍵刪除全部資料
+                </button>
+              )}
+            </div>
+
+            {loading ? (
+              <p className="text-stone-400">載入垃圾桶資料中...</p>
+            ) : trashedOrders.length === 0 ? (
+              <p className="text-stone-400 py-6 text-center">垃圾桶內空空如也！</p>
+            ) : (
+              <div className="space-y-4">
+                {trashedOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="p-5 rounded-xl border border-rose-100 bg-rose-50/50 flex flex-col md:flex-row justify-between gap-4"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-3">
+                        <span className="font-bold text-lg text-stone-800">
+                          {order.customer_name}
+                        </span>
+                        <span className="text-stone-600 text-sm">📞 {order.customer_phone}</span>
+                        <span className="text-xs bg-stone-200 text-stone-700 px-2.5 py-0.5 rounded-full font-semibold">
+                          {order.pickup_type}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-500">
+                        預約取貨日期：{order.pickup_date} | 下單時間：{new Date(order.created_at).toLocaleString('zh-TW')}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-4">
+                      <span className="text-lg font-bold text-stone-700">${order.total_amount} 元</span>
+                      <button
+                        onClick={() => handleToggleTrash(order.id, false)}
+                        className="bg-stone-800 text-white text-xs px-3 py-2 rounded-lg font-bold hover:bg-stone-900 transition"
+                      >
+                        ↩️ 還原訂單
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </section>
@@ -577,7 +702,6 @@ export default function AdminPage() {
                     type="text"
                     value={editingProduct.category || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
-                    placeholder="例如: 吐司類 / 可頌類"
                     className="w-full p-2 border border-stone-300 rounded-lg text-sm"
                     required
                   />
