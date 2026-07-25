@@ -95,9 +95,15 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 更新訂單狀態
+  // 🌟 核心修復：即時更新 State 與 Supabase 資料庫中的訂單狀態
   const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
+      // 1. 立即更新本地 orders State，讓畫面零延遲反應
+      setOrders((prevOrders) =>
+        prevOrders.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
+      );
+
+      // 2. 發送更新請求至 Supabase
       const { error } = await supabase
         .from('orders')
         .update({ status: newStatus })
@@ -105,12 +111,13 @@ export default function AdminPage() {
 
       if (error) {
         alert(`❌ 更新訂單狀態失敗：${error.message}`);
+        fetchData(); // 發生錯誤時重新拉取舊資料
       } else {
-        alert(`🎉 訂單狀態已成功更新為「${newStatus}」！`);
-        fetchData();
+        alert(`🎉 訂單狀態已成功更新為「${newStatus === 'completed' || newStatus === '已出貨' ? '已出貨' : '待處理'}」！`);
       }
     } catch (err: any) {
       alert(`系統例外錯誤：${err.message}`);
+      fetchData();
     }
   };
 
@@ -158,7 +165,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🌟 核心功能：新增商品 (包含 category 類別)
+  // 新增商品
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price || !stock) {
@@ -202,7 +209,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🌟 核心功能：更新商品 (包含 category 類別)
+  // 更新商品
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -316,7 +323,6 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  {/* 🌟 類別選擇 */}
                   <div>
                     <label className="block text-sm font-medium mb-1">商品類別 *</label>
                     <select
@@ -423,7 +429,6 @@ export default function AdminPage() {
                         <div>
                           <div className="flex items-center space-x-2">
                             <h4 className="font-bold text-stone-900">{p.name}</h4>
-                            {/* 🌟 類別標籤 */}
                             <span className="text-[11px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-semibold">
                               {p.category || '未分類'}
                             </span>
@@ -447,7 +452,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 頁籤 2：預約單檢視 */}
+        {/* 頁籤 2：預約單檢視與強健狀態切換 */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
@@ -458,6 +463,7 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-4">
                 {orders.map((order) => {
+                  // 🌟 強化判斷：支援 'completed' 與 '已出貨'
                   const isShipped = order.status === 'completed' || order.status === '已出貨';
                   return (
                     <div
@@ -496,6 +502,7 @@ export default function AdminPage() {
                         </div>
                       </div>
 
+                      {/* 右側狀態顯示與操作按鈕 */}
                       <div className="flex flex-col justify-between items-end min-w-[140px]">
                         <span className="text-xl font-bold text-amber-900 mb-2 md:mb-0">
                           ${order.total_amount} 元
@@ -512,6 +519,7 @@ export default function AdminPage() {
                             狀態：{isShipped ? '✅ 已出貨' : '⏳ 待處理'}
                           </span>
 
+                          {/* 🌟 點擊即刻觸發狀態改變 */}
                           {isShipped ? (
                             <button
                               onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
@@ -521,8 +529,8 @@ export default function AdminPage() {
                             </button>
                           ) : (
                             <button
-                              onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
-                              className="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-800 transition"
+                              onClick={() => handleUpdateOrderStatus(order.id, '已出貨')}
+                              className="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-800 transition shadow-sm"
                             >
                               改為已出貨
                             </button>
@@ -537,7 +545,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 🌟 編輯 Modal 彈窗 (含類別編輯) */}
+        {/* 編輯 Modal 彈窗 */}
         {editingProduct && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-stone-200">
@@ -563,7 +571,6 @@ export default function AdminPage() {
                   />
                 </div>
 
-                {/* 🌟 編輯類別 */}
                 <div>
                   <label className="block text-xs font-medium text-stone-600 mb-1">商品類別</label>
                   <input
