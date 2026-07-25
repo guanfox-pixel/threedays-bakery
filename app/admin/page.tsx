@@ -10,6 +10,7 @@ interface Product {
   price: number;
   stock: number;
   image_url: string;
+  category: string;
 }
 
 interface Order {
@@ -26,32 +27,29 @@ interface Order {
 }
 
 export default function AdminPage() {
-  // 1. 登入防護 State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState<string>('');
-
-  // 2. 標籤頁切換 State (products / orders)
   const [activeTab, setActiveTab] = useState<'products' | 'orders'>('products');
 
-  // 3. 資料清單 State
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 4. 新增商品 State
+  // 新增商品 State
   const [name, setName] = useState<string>('');
   const [desc, setDesc] = useState<string>('');
   const [price, setPrice] = useState<string>('');
   const [stock, setStock] = useState<string>('');
+  const [category, setCategory] = useState<string>('吐司類');
+  const [customCategory, setCustomCategory] = useState<string>('');
   const [imageUrl, setImageUrl] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
-  // 5. 編輯商品 Modal State
+  // 編輯商品 Modal State
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editUploadingImage, setEditUploadingImage] = useState<boolean>(false);
 
-  // 檢查登入狀態
   useEffect(() => {
     const loggedIn = sessionStorage.getItem('threedays_admin_logged');
     if (loggedIn === 'true') {
@@ -59,7 +57,6 @@ export default function AdminPage() {
     }
   }, []);
 
-  // 處理密碼登入
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput === 'threedays2026') {
@@ -70,13 +67,11 @@ export default function AdminPage() {
     }
   };
 
-  // 登出處理
   const handleLogout = () => {
     sessionStorage.removeItem('threedays_admin_logged');
     setIsAuthenticated(false);
   };
 
-  // 抓取商品與預約單
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -99,6 +94,25 @@ export default function AdminPage() {
       fetchData();
     }
   }, [isAuthenticated]);
+
+  // 更新訂單狀態
+  const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+
+      if (error) {
+        alert(`❌ 更新訂單狀態失敗：${error.message}`);
+      } else {
+        alert(`🎉 訂單狀態已成功更新為「${newStatus}」！`);
+        fetchData();
+      }
+    } catch (err: any) {
+      alert(`系統例外錯誤：${err.message}`);
+    }
+  };
 
   // 圖片上傳至 Supabase Storage
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
@@ -144,13 +158,15 @@ export default function AdminPage() {
     }
   };
 
-  // 新增商品
+  // 🌟 核心功能：新增商品 (包含 category 類別)
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price || !stock) {
       alert('請填寫完整商品名稱、價格與庫存！');
       return;
     }
+
+    const finalCategory = category === '其他自訂' ? customCategory.trim() || '未分類' : category;
 
     setSubmitting(true);
     try {
@@ -160,6 +176,7 @@ export default function AdminPage() {
           description: desc.trim(),
           price: Number(price),
           stock: Number(stock),
+          category: finalCategory,
           image_url: imageUrl.trim(),
           is_active: true,
         },
@@ -173,6 +190,8 @@ export default function AdminPage() {
         setDesc('');
         setPrice('');
         setStock('');
+        setCategory('吐司類');
+        setCustomCategory('');
         setImageUrl('');
         fetchData();
       }
@@ -183,7 +202,7 @@ export default function AdminPage() {
     }
   };
 
-  // 更新商品
+  // 🌟 核心功能：更新商品 (包含 category 類別)
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -196,6 +215,7 @@ export default function AdminPage() {
           description: editingProduct.description.trim(),
           price: Number(editingProduct.price),
           stock: Number(editingProduct.stock),
+          category: editingProduct.category.trim() || '未分類',
           image_url: editingProduct.image_url,
         })
         .eq('id', editingProduct.id);
@@ -212,7 +232,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🔒 1. 未登入顯示密碼表單
   if (!isAuthenticated) {
     return (
       <main className="min-h-screen bg-stone-100 flex items-center justify-center p-6">
@@ -240,7 +259,6 @@ export default function AdminPage() {
     );
   }
 
-  // 🔓 2. 已登入後台主介面
   return (
     <main className="min-h-screen bg-stone-100 p-6 md:p-10 text-stone-800">
       <div className="max-w-5xl mx-auto">
@@ -285,16 +303,44 @@ export default function AdminPage() {
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">➕ 新增麵包品項</h2>
               <form onSubmit={handleAddProduct} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">麵包名稱 *</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="例如：日式鹽可頌"
-                    className="w-full p-2.5 border border-stone-300 rounded-lg"
-                    required
-                  />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">麵包名稱 *</label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="例如：日式鹽可頌"
+                      className="w-full p-2.5 border border-stone-300 rounded-lg"
+                      required
+                    />
+                  </div>
+
+                  {/* 🌟 類別選擇 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">商品類別 *</label>
+                    <select
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full p-2.5 border border-stone-300 rounded-lg bg-white"
+                    >
+                      <option value="吐司類">🍞 吐司類</option>
+                      <option value="可頌類">🥐 可頌類</option>
+                      <option value="歐包類">🥖 歐包類</option>
+                      <option value="甜點類">🍰 甜點類</option>
+                      <option value="其他自訂">➕ 其他自訂類別</option>
+                    </select>
+                    {category === '其他自訂' && (
+                      <input
+                        type="text"
+                        value={customCategory}
+                        onChange={(e) => setCustomCategory(e.target.value)}
+                        placeholder="請輸入自訂類別名稱 (如: 貝果類)"
+                        className="w-full p-2.5 border border-stone-300 rounded-lg mt-2 text-sm"
+                        required
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <div>
@@ -341,7 +387,7 @@ export default function AdminPage() {
                     disabled={uploadingImage}
                     className="w-full p-2 border border-stone-300 rounded-lg text-sm bg-stone-50"
                   />
-                  {uploadingImage && <p className="text-xs text-amber-800 mt-1 animate-pulse">圖片上傳 Supabase 中...</p>}
+                  {uploadingImage && <p className="text-xs text-amber-800 mt-1 animate-pulse">圖片上傳中...</p>}
                   {imageUrl && (
                     <div className="mt-2">
                       <img src={imageUrl} alt="預覽" className="w-20 h-20 object-cover rounded-lg border" />
@@ -359,7 +405,7 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 商品列表 */}
+            {/* 已上架商品列表 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已上架商品清單</h2>
               {loading ? (
@@ -375,7 +421,13 @@ export default function AdminPage() {
                           <div className="w-14 h-14 bg-stone-100 rounded-lg flex items-center justify-center text-xs text-stone-400">無圖</div>
                         )}
                         <div>
-                          <h4 className="font-bold text-stone-900">{p.name}</h4>
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-bold text-stone-900">{p.name}</h4>
+                            {/* 🌟 類別標籤 */}
+                            <span className="text-[11px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-semibold">
+                              {p.category || '未分類'}
+                            </span>
+                          </div>
                           <p className="text-xs text-stone-500">{p.description || '無描述'}</p>
                           <p className="text-xs text-amber-800 font-semibold mt-1">單價: ${p.price} | 庫存: {p.stock}</p>
                         </div>
@@ -405,59 +457,87 @@ export default function AdminPage() {
               <p className="text-stone-400">目前尚無任何預約訂單。</p>
             ) : (
               <div className="space-y-4">
-                {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="p-5 rounded-xl border border-stone-200 bg-stone-50 flex flex-col md:flex-row justify-between gap-4"
-                  >
-                    <div className="space-y-1">
-                      <div className="flex items-center space-x-3">
-                        <span className="font-bold text-lg text-amber-950">
-                          {order.customer_name}
-                        </span>
-                        <span className="text-stone-600 text-sm">📞 {order.customer_phone}</span>
-                        <span className="text-xs bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-semibold">
-                          {order.pickup_type}
-                        </span>
-                      </div>
-                      <p className="text-xs text-stone-500">
-                        預約取貨日期：<strong className="text-stone-700">{order.pickup_date}</strong> | 
-                        下單時間：{new Date(order.created_at).toLocaleString('zh-TW')}
-                      </p>
-                      {order.note && (
-                        <p className="text-xs text-stone-600 bg-white p-2 rounded border border-stone-200 mt-2">
-                          備註：{order.note}
+                {orders.map((order) => {
+                  const isShipped = order.status === 'completed' || order.status === '已出貨';
+                  return (
+                    <div
+                      key={order.id}
+                      className="p-5 rounded-xl border border-stone-200 bg-stone-50 flex flex-col md:flex-row justify-between gap-4"
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center space-x-3">
+                          <span className="font-bold text-lg text-amber-950">
+                            {order.customer_name}
+                          </span>
+                          <span className="text-stone-600 text-sm">📞 {order.customer_phone}</span>
+                          <span className="text-xs bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-full font-semibold">
+                            {order.pickup_type}
+                          </span>
+                        </div>
+                        <p className="text-xs text-stone-500">
+                          預約取貨日期：<strong className="text-stone-700">{order.pickup_date}</strong> | 
+                          下單時間：{new Date(order.created_at).toLocaleString('zh-TW')}
                         </p>
-                      )}
-                      <div className="mt-3 pt-2 border-t border-stone-200">
-                        <p className="text-xs font-bold text-stone-700 mb-1">預約品項：</p>
-                        <ul className="text-xs space-y-1 text-stone-600">
-                          {order.items &&
-                            order.items.map((item: any, idx: number) => (
-                              <li key={idx}>
-                                • {item.name} × {item.quantity} (NTD ${item.price * item.quantity})
-                              </li>
-                            ))}
-                        </ul>
+                        {order.note && (
+                          <p className="text-xs text-stone-600 bg-white p-2 rounded border border-stone-200 mt-2">
+                            備註：{order.note}
+                          </p>
+                        )}
+                        <div className="mt-3 pt-2 border-t border-stone-200">
+                          <p className="text-xs font-bold text-stone-700 mb-1">預約品項：</p>
+                          <ul className="text-xs space-y-1 text-stone-600">
+                            {order.items &&
+                              order.items.map((item: any, idx: number) => (
+                                <li key={idx}>
+                                  • {item.name} × {item.quantity} (NTD ${item.price * item.quantity})
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col justify-between items-end min-w-[140px]">
+                        <span className="text-xl font-bold text-amber-900 mb-2 md:mb-0">
+                          ${order.total_amount} 元
+                        </span>
+
+                        <div className="flex flex-col items-end space-y-2">
+                          <span
+                            className={`text-xs px-3 py-1 rounded-full font-bold ${
+                              isShipped
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800 animate-pulse'
+                            }`}
+                          >
+                            狀態：{isShipped ? '✅ 已出貨' : '⏳ 待處理'}
+                          </span>
+
+                          {isShipped ? (
+                            <button
+                              onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
+                              className="text-xs text-stone-500 underline hover:text-stone-800"
+                            >
+                              標記為待處理
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleUpdateOrderStatus(order.id, 'completed')}
+                              className="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-800 transition"
+                            >
+                              改為已出貨
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-
-                    <div className="flex flex-col justify-between items-end min-w-[120px]">
-                      <span className="text-xl font-bold text-amber-900">
-                        ${order.total_amount} 元
-                      </span>
-                      <span className="text-xs bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full font-bold">
-                        狀態：{order.status === 'pending' ? '待處理' : order.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
         )}
 
-        {/* 編輯 Modal 彈窗 */}
+        {/* 🌟 編輯 Modal 彈窗 (含類別編輯) */}
         {editingProduct && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-stone-200">
@@ -478,6 +558,19 @@ export default function AdminPage() {
                     type="text"
                     value={editingProduct.name}
                     onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-sm"
+                    required
+                  />
+                </div>
+
+                {/* 🌟 編輯類別 */}
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">商品類別</label>
+                  <input
+                    type="text"
+                    value={editingProduct.category || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                    placeholder="例如: 吐司類 / 可頌類"
                     className="w-full p-2 border border-stone-300 rounded-lg text-sm"
                     required
                   />

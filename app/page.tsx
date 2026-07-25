@@ -10,6 +10,7 @@ interface Product {
   price: number;
   stock: number;
   image_url: string;
+  category: string;
   is_active: boolean;
 }
 
@@ -22,7 +23,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
-  // 購物車與訂單狀態
+  // 購物車與預約單 State
   const [cart, setCart] = useState<{ [key: number]: number }>({});
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -71,12 +72,22 @@ export default function HomePage() {
     });
   };
 
-  // 3. 計算總金額與購買明細
+  // 3. 計算總金額與購物車品項
   const cartItems: CartItem[] = products
     .filter((p) => cart[p.id] > 0)
     .map((p) => ({ ...p, quantity: cart[p.id] }));
 
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  // 🌟 核心分區邏輯：將商品按 category 分組
+  const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
+    const cat = product.category || '未分類';
+    if (!acc[cat]) {
+      acc[cat] = [];
+    }
+    acc[cat].push(product);
+    return acc;
+  }, {});
 
   // 4. 送出預約訂單
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -94,7 +105,7 @@ export default function HomePage() {
     setSubmitting(true);
 
     try {
-      const { data, error } = await supabase.from('orders').insert([
+      const { error } = await supabase.from('orders').insert([
         {
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
@@ -110,11 +121,26 @@ export default function HomePage() {
           note: note.trim(),
           status: 'pending',
         },
-      ]).select();
+      ]);
 
       if (error) {
         alert(`❌ 預約失敗：${error.message}`);
       } else {
+        // 發送 Telegram 店家推播
+        fetch('/api/notify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            customerName: customerName.trim(),
+            customerPhone: customerPhone.trim(),
+            pickupType,
+            pickupDate,
+            items: cartItems,
+            totalAmount: totalPrice,
+            note: note.trim(),
+          }),
+        }).catch((err) => console.error('推播失敗:', err));
+
         alert('🎉 預約成功！我們將會為您準備新鮮手作麵包！');
         setCart({});
         setCustomerName('');
@@ -140,10 +166,8 @@ export default function HomePage() {
       </header>
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* 左側：麵包點單區域 */}
-        <section className="lg:col-span-2">
-          <h2 className="text-xl md:text-2xl font-bold text-amber-950 mb-4">🍞 今日新鮮麵包</h2>
-
+        {/* 左側：分區麵包點單區域 (2 欄) */}
+        <section className="lg:col-span-2 space-y-8">
           {loading && <p className="text-stone-400 animate-pulse text-sm">載入麵包品項中...</p>}
           {errorMsg && <p className="text-red-500 font-semibold text-sm">{errorMsg}</p>}
 
@@ -151,74 +175,86 @@ export default function HomePage() {
             <p className="text-stone-400 text-sm">目前尚無上架商品，請至後台新增！</p>
           )}
 
-          {/* 🌟 核心修改：grid-cols-2 (手機一排2個) 搭配 gap-3 (緊湊間距) */}
-          <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-            {products.map((item) => {
-              const qty = cart[item.id] || 0;
-              return (
-                <div
-                  key={item.id}
-                  className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm border border-stone-200 flex flex-col justify-between"
-                >
-                  <div>
-                    {/* 🌟 圖片高度調整：h-28 (手機精緻小圖) sm:h-36 */}
-                    {item.image_url ? (
-                      <img
-                        src={item.image_url}
-                        alt={item.name}
-                        className="w-full h-28 sm:h-36 md:h-40 object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-28 sm:h-36 md:h-40 bg-stone-100 flex items-center justify-center text-stone-400 text-xs">
-                        尚無圖片
-                      </div>
-                    )}
-                    <div className="p-2.5 sm:p-4">
-                      <h3 className="text-sm sm:text-base font-bold text-stone-900 truncate">
-                        {item.name}
-                      </h3>
-                      <p className="text-stone-500 text-[11px] sm:text-xs mt-0.5 line-clamp-2 h-7 sm:h-8 overflow-hidden">
-                        {item.description || '新鮮美味手作'}
-                      </p>
-                      <div className="flex justify-between items-center mt-2">
-                        <span className="text-amber-900 font-bold text-sm sm:text-base">
-                          ${item.price}
-                        </span>
-                        <span className="text-[10px] sm:text-xs text-stone-400">
-                          庫存: {item.stock}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+          {/* 🌟 按類別分區依序渲染 */}
+          {!loading &&
+            Object.keys(categorizedProducts).map((categoryName) => (
+              <div key={categoryName} className="space-y-3">
+                {/* 類別區塊標題 */}
+                <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-200 pb-2 flex items-center">
+                  <span className="mr-2">🥖</span> {categoryName}
+                </h2>
 
-                  {/* 數量選擇按鈕：緊湊按鈕樣式 */}
-                  <div className="p-2.5 sm:p-4 pt-0 flex items-center justify-between">
-                    <span className="text-[10px] sm:text-xs text-stone-500 hidden sm:inline">
-                      數量：
-                    </span>
-                    <div className="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto justify-between sm:justify-end">
-                      <button
-                        onClick={() => updateCartQuantity(item.id, -1, item.stock)}
-                        className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-stone-100 text-stone-700 font-bold hover:bg-stone-200 text-xs sm:text-sm flex items-center justify-center"
+                {/* 手機一排2個卡片網格 (grid-cols-2) */}
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+                  {categorizedProducts[categoryName].map((item) => {
+                    const qty = cart[item.id] || 0;
+                    return (
+                      <div
+                        key={item.id}
+                        className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm border border-stone-200 flex flex-col justify-between"
                       >
-                        -
-                      </button>
-                      <span className="w-5 text-center font-bold text-xs sm:text-sm">{qty}</span>
-                      <button
-                        onClick={() => updateCartQuantity(item.id, 1, item.stock)}
-                        className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-amber-800 text-white font-bold hover:bg-amber-900 text-xs sm:text-sm flex items-center justify-center"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </div>
+                        <div>
+                          {item.image_url ? (
+                            <img
+                              src={item.image_url}
+                              alt={item.name}
+                              className="w-full h-28 sm:h-36 md:h-40 object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-28 sm:h-36 md:h-40 bg-stone-100 flex items-center justify-center text-stone-400 text-xs">
+                              尚無圖片
+                            </div>
+                          )}
+                          <div className="p-2.5 sm:p-4">
+                            <h3 className="text-sm sm:text-base font-bold text-stone-900 truncate">
+                              {item.name}
+                            </h3>
+                            <p className="text-stone-500 text-[11px] sm:text-xs mt-0.5 line-clamp-2 h-7 sm:h-8 overflow-hidden">
+                              {item.description || '新鮮美味手作'}
+                            </p>
+                            <div className="flex justify-between items-center mt-2">
+                              <span className="text-amber-900 font-bold text-sm sm:text-base">
+                                ${item.price}
+                              </span>
+                              <span className="text-[10px] sm:text-xs text-stone-400">
+                                庫存: {item.stock}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 數量選擇按鈕 */}
+                        <div className="p-2.5 sm:p-4 pt-0 flex items-center justify-between">
+                          <span className="text-[10px] sm:text-xs text-stone-500 hidden sm:inline">
+                            數量：
+                          </span>
+                          <div className="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                            <button
+                              onClick={() => updateCartQuantity(item.id, -1, item.stock)}
+                              className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-stone-100 text-stone-700 font-bold hover:bg-stone-200 text-xs sm:text-sm flex items-center justify-center"
+                            >
+                              -
+                            </button>
+                            <span className="w-5 text-center font-bold text-xs sm:text-sm">
+                              {qty}
+                            </span>
+                            <button
+                              onClick={() => updateCartQuantity(item.id, 1, item.stock)}
+                              className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-amber-800 text-white font-bold hover:bg-amber-900 text-xs sm:text-sm flex items-center justify-center"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-          </div>
+              </div>
+            ))}
         </section>
 
-        {/* 右側：購物車與預約結帳單 */}
+        {/* 右側：購物車與預約單 */}
         <section className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200 h-fit sticky top-6">
           <h2 className="text-lg md:text-xl font-bold text-amber-950 mb-4">🛒 預約結帳單</h2>
 
