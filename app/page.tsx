@@ -23,6 +23,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
+  // 圖片放大燈箱 State
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+
   // 購物車與預約單 State
   const [cart, setCart] = useState<{ [key: number]: number }>({});
   const [customerName, setCustomerName] = useState('');
@@ -193,7 +196,6 @@ export default function HomePage() {
   };
 
   return (
-    // 🌟 核心修改重點：已移除 style={{ backgroundImage: ... }}，並改用 bg-stone-50 純色背景
     <main className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-stone-50 overflow-x-hidden">
       <header className="-mx-3 -mt-3 sm:mx-auto sm:mt-0 max-w-5xl text-center mb-6 md:mb-10 flex flex-col items-center">
         <div className="w-full sm:max-w-md md:max-w-lg">
@@ -203,8 +205,10 @@ export default function HomePage() {
             className="w-full h-auto block object-cover drop-shadow-sm mb-3"
           />
         </div>
+        
+        {/* 🌟 核心修改重點：將標語修改為「熱量就該浪費在美好的菠蘿上」 */}
         <p className="text-xs md:text-sm font-semibold text-stone-600 bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full border border-stone-200/80 shadow-xs mx-3">
-          每日新鮮發酵，線上即時點單預約
+          熱量就該浪費在美好的菠蘿上
         </p>
       </header>
 
@@ -241,21 +245,31 @@ export default function HomePage() {
                       >
                         <div>
                           {item.image_url ? (
-                            <img
-                              src={item.image_url}
-                              alt={item.name}
-                              className="w-full h-28 sm:h-36 md:h-40 object-cover"
-                            />
+                            <div
+                              onClick={() => setPreviewImage(item.image_url)}
+                              className="w-full h-28 sm:h-36 md:h-40 overflow-hidden cursor-zoom-in relative group"
+                              title="點擊放大檢視圖片"
+                            >
+                              <img
+                                src={item.image_url}
+                                alt={item.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                              />
+                              <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold">
+                                🔍 點擊放大
+                              </div>
+                            </div>
                           ) : (
                             <div className="w-full h-28 sm:h-36 md:h-40 bg-stone-100 flex items-center justify-center text-stone-400 text-xs">
                               尚無圖片
                             </div>
                           )}
+
                           <div className="p-2.5 sm:p-4">
-                            <h3 className="text-sm sm:text-base font-bold text-stone-900 truncate">
+                            <h3 className="text-sm sm:text-base font-bold text-stone-900 leading-snug break-words">
                               {item.name}
                             </h3>
-                            <p className="text-stone-500 text-[11px] sm:text-xs mt-0.5 line-clamp-2 h-7 sm:h-8 overflow-hidden">
+                            <p className="text-stone-500 text-xs mt-1 leading-relaxed break-words whitespace-pre-line">
                               {item.description || '新鮮美味手作'}
                             </p>
                             <div className="flex justify-between items-center mt-2">
@@ -451,6 +465,28 @@ export default function HomePage() {
           </div>
         </section>
       </div>
+
+      {/* 全螢幕圖片放大燈箱 Modal */}
+      {previewImage && (
+        <div
+          onClick={() => setPreviewImage(null)}
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-xs cursor-zoom-out animate-fadeIn"
+        >
+          <div className="relative max-w-3xl max-h-[90vh] w-full flex items-center justify-center">
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-10 right-0 text-white bg-white/20 hover:bg-white/40 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg transition"
+            >
+              ✕
+            </button>
+            <img
+              src={previewImage}
+              alt="商品圖片放大"
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
     </main>
   );
 }
