@@ -45,7 +45,6 @@ export default function HomePage() {
     setMinDate(`${yyyy}-${mm}-${dd}`);
   }, []);
 
-  // 1. 抓取已上架商品清單與置頂類別設定
   const fetchProducts = async () => {
     setLoading(true);
     setErrorMsg('');
@@ -82,7 +81,6 @@ export default function HomePage() {
     fetchProducts();
   }, []);
 
-  // 2. 購物車數量控制
   const updateCartQuantity = (productId: number, delta: number) => {
     setCart((prev) => {
       const currentQty = prev[productId] || 0;
@@ -96,14 +94,12 @@ export default function HomePage() {
     });
   };
 
-  // 3. 計算總金額與購物車品項
   const cartItems: CartItem[] = products
     .filter((p) => cart[p.id] > 0)
     .map((p) => ({ ...p, quantity: cart[p.id] }));
 
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // 分區與排序邏輯
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
     if (!acc[cat]) {
@@ -121,7 +117,6 @@ export default function HomePage() {
     return 0;
   });
 
-  // 4. 送出預約訂單
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -196,17 +191,16 @@ export default function HomePage() {
   };
 
   return (
-    // 🌟 1. 核心修改：套用重複麵包印花底圖背景
     <main
       className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-repeat"
       style={{ backgroundImage: "url('/bg-pattern.jpg')", backgroundSize: '240px auto' }}
     >
-      {/* 🌟 2. 核心修改：頂部 LOGO 圖片替換原文字標題 */}
-      <header className="max-w-5xl mx-auto text-center mb-6 md:mb-10 flex flex-col items-center">
+      {/* 🌟 修改重點：LOGO 放大至手機螢幕寬度 */}
+      <header className="max-w-5xl mx-auto text-center mb-6 md:mb-10 flex flex-col items-center px-2">
         <img
           src="/logo.png"
           alt="三日酵 THREEDAYS"
-          className="w-44 sm:w-56 md:w-64 h-auto object-contain drop-shadow-sm mb-2"
+          className="w-full max-w-sm sm:max-w-md md:max-w-lg h-auto object-contain drop-shadow-sm mb-2"
         />
         <p className="text-xs md:text-sm font-semibold text-stone-600 bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full border border-stone-200/80 shadow-xs">
           每日新鮮發酵，線上即時點單預約
@@ -214,7 +208,6 @@ export default function HomePage() {
       </header>
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        {/* 左側：麵包點單區域 */}
         <section className="lg:col-span-2 space-y-8">
           {loading && <p className="text-stone-400 animate-pulse text-sm">載入麵包品項中...</p>}
           {errorMsg && <p className="text-red-500 font-semibold text-sm">{errorMsg}</p>}
@@ -270,7 +263,6 @@ export default function HomePage() {
                           </div>
                         </div>
 
-                        {/* 數量選擇按鈕 */}
                         <div className="p-2.5 sm:p-4 pt-0 flex items-center justify-between">
                           <span className="text-[10px] sm:text-xs text-stone-500 hidden sm:inline">
                             數量：
@@ -301,9 +293,7 @@ export default function HomePage() {
             ))}
         </section>
 
-        {/* 右側：預訂注意事項 + 購物車預約結帳單 */}
         <section className="space-y-6 h-fit sticky top-6">
-          {/* 預訂注意事項卡片 */}
           <div className="bg-amber-50/95 backdrop-blur-xs p-5 rounded-2xl border border-amber-200/90 shadow-sm text-stone-800">
             <h3 className="font-bold text-amber-950 text-base mb-3 flex items-center border-b border-amber-200/60 pb-2">
               <span className="mr-1.5">📌</span> 預訂注意事項
@@ -340,7 +330,6 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* 預約結帳單 */}
           <div className="bg-white/95 backdrop-blur-xs p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-lg md:text-xl font-bold text-amber-950 mb-4">🛒 預約結帳單</h2>
 

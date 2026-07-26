@@ -19,7 +19,7 @@ interface Order {
   customer_name: string;
   customer_phone: string;
   pickup_type: string;
-  pickup_date: string;
+  pickup_date: string; // 完整包含日期與時間，如 "2026-07-28 15:00"
   total_amount: number;
   items: any[];
   note: string;
@@ -105,7 +105,6 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 現有類別清單
   const existingCategories = Array.from(
     new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c) && c.trim() !== ''))
   );
@@ -114,7 +113,6 @@ export default function AdminPage() {
     new Set([...existingCategories, ...defaultCategories])
   );
 
-  // 🌟 核心功能：切換類別置頂狀態
   const handleToggleCategoryPin = async (catName: string) => {
     const isCurrentlyPinned = pinnedCategories.includes(catName);
     const targetState = !isCurrentlyPinned;
@@ -140,7 +138,6 @@ export default function AdminPage() {
     }
   };
 
-  // 切換商品上下架狀態
   const handleToggleProductActive = async (productId: number, currentIsActive: boolean) => {
     const targetState = !currentIsActive;
     try {
@@ -165,7 +162,6 @@ export default function AdminPage() {
     }
   };
 
-  // 訂單狀態切換
   const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
       setOrders((prev) =>
@@ -187,7 +183,6 @@ export default function AdminPage() {
     }
   };
 
-  // 移至 / 還原垃圾桶
   const handleToggleTrash = async (orderId: number, targetIsDeleted: boolean) => {
     try {
       setOrders((prev) =>
@@ -211,7 +206,6 @@ export default function AdminPage() {
     }
   };
 
-  // 一鍵清空垃圾桶
   const handleClearAllTrash = async () => {
     const trashedOrders = orders.filter((o) => o.is_deleted);
     if (trashedOrders.length === 0) {
@@ -238,7 +232,6 @@ export default function AdminPage() {
     }
   };
 
-  // 圖片上傳
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -282,7 +275,6 @@ export default function AdminPage() {
     }
   };
 
-  // 新增商品
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price) {
@@ -326,7 +318,6 @@ export default function AdminPage() {
     }
   };
 
-  // 更新商品
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -398,7 +389,6 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* 標籤頁切換按鈕 */}
         <div className="flex space-x-3 mb-6 border-b border-stone-200 pb-4">
           <button
             onClick={() => setActiveTab('products')}
@@ -432,10 +422,8 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* 頁籤 1：商品管理 */}
         {activeTab === 'products' && (
           <div className="space-y-10">
-            {/* 🌟 核心新增：類別置頂設定區塊 */}
             <section className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-sm">
               <h2 className="text-base font-bold text-amber-950 mb-2 flex items-center">
                 📌 設定前台第一個顯示的「置頂麵包類別」
@@ -467,7 +455,6 @@ export default function AdminPage() {
               </div>
             </section>
 
-            {/* 新增商品表單 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">➕ 新增麵包品項</h2>
               <form onSubmit={handleAddProduct} className="space-y-4">
@@ -561,7 +548,6 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 已建立商品列表 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已建立商品清單</h2>
               {loading ? (
@@ -624,7 +610,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 頁籤 2：客戶預約單 */}
+        {/* 🌟 頁籤 2：客戶預約單 (強化完整日期與時間呈現) */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
@@ -652,11 +638,12 @@ export default function AdminPage() {
                           </span>
                         </div>
 
+                        {/* 🌟 核心高亮：完整顯示預約日期與時間 (如: 2026-07-28 15:00) */}
                         <div className="bg-amber-100/90 border border-amber-300 p-2.5 rounded-lg inline-block">
-                          <p className="text-xs font-bold text-amber-950">
-                            ⏰ 預約取貨時間：
-                            <span className="text-sm font-extrabold text-amber-900 ml-1">
-                              {order.pickup_date}
+                          <p className="text-xs font-bold text-amber-950 flex items-center">
+                            <span>⏰ 預約取貨時間：</span>
+                            <span className="text-sm font-extrabold text-amber-900 ml-1.5 bg-white px-2 py-0.5 rounded border border-amber-200">
+                              {order.pickup_date || '未指定時間'}
                             </span>
                           </p>
                         </div>
@@ -734,7 +721,6 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 頁籤 3：垃圾桶 */}
         {activeTab === 'trash' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <div className="flex justify-between items-center mb-6">
@@ -788,7 +774,6 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 編輯 Modal 彈窗 */}
         {editingProduct && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-stone-200">
