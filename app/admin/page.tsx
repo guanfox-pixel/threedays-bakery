@@ -19,7 +19,7 @@ interface Order {
   customer_name: string;
   customer_phone: string;
   pickup_type: string;
-  pickup_date: string;
+  pickup_date: string; // 包含日期與時間，例如：2026-07-28 15:00
   total_amount: number;
   items: any[];
   note: string;
@@ -36,7 +36,7 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 新增商品 State (已完全刪除 stock 欄位)
+  // 新增商品 State
   const [name, setName] = useState<string>('');
   const [desc, setDesc] = useState<string>('');
   const [price, setPrice] = useState<string>('');
@@ -95,16 +95,14 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 🌟 核心功能：一鍵切換商品「上架 / 下架」狀態
+  // 切換商品上下架狀態
   const handleToggleProductActive = async (productId: number, currentIsActive: boolean) => {
     const targetState = !currentIsActive;
     try {
-      // 即時更新前端畫面 State
       setProducts((prev) =>
         prev.map((p) => (p.id === productId ? { ...p, is_active: targetState } : p))
       );
 
-      // 更新 Supabase 資料庫
       const { error } = await supabase
         .from('products')
         .update({ is_active: targetState })
@@ -195,7 +193,7 @@ export default function AdminPage() {
     }
   };
 
-  // 圖片上傳至 Supabase Storage
+  // 圖片上傳
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -239,7 +237,7 @@ export default function AdminPage() {
     }
   };
 
-  // 新增商品 (已移除數量/庫存欄位)
+  // 新增商品
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price) {
@@ -258,7 +256,7 @@ export default function AdminPage() {
           price: Number(price),
           category: finalCategory,
           image_url: imageUrl.trim(),
-          is_active: true, // 預設上架
+          is_active: true,
         },
       ]);
 
@@ -281,7 +279,7 @@ export default function AdminPage() {
     }
   };
 
-  // 更新商品 (已移除數量/庫存欄位)
+  // 更新商品
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
@@ -482,7 +480,7 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 已建立商品列表 (含上下架按鈕) */}
+            {/* 已建立商品列表 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已建立商品清單</h2>
               {loading ? (
@@ -503,7 +501,6 @@ export default function AdminPage() {
                             <span className="text-[11px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-semibold">
                               {p.category || '未分類'}
                             </span>
-                            {/* 🌟 狀態標籤：顯示已上架或已下架 */}
                             <span
                               className={`text-[11px] px-2 py-0.5 rounded font-semibold ${
                                 p.is_active
@@ -520,7 +517,6 @@ export default function AdminPage() {
                       </div>
 
                       <div className="flex items-center space-x-2">
-                        {/* 🌟 上下架切換按鈕 */}
                         <button
                           onClick={() => handleToggleProductActive(p.id, p.is_active)}
                           className={`px-3 py-1.5 rounded-lg font-bold text-xs transition ${
@@ -547,7 +543,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 頁籤 2：客戶預約單 */}
+        {/* 🌟 頁籤 2：客戶預約單 (包含日期與時間高亮顯示) */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
@@ -574,10 +570,18 @@ export default function AdminPage() {
                             {order.pickup_type}
                           </span>
                         </div>
-                        <p className="text-xs text-stone-500">
-                          預約取貨日期：<strong className="text-stone-700">{order.pickup_date}</strong> | 
-                          下單時間：{new Date(order.created_at).toLocaleString('zh-TW')}
+
+                        {/* 🌟 核心高亮：顯示預約日期與具體取貨時間 */}
+                        <p className="text-xs text-stone-600">
+                          ⏰ 預約取貨時間：
+                          <strong className="text-amber-900 font-bold bg-amber-100 px-2 py-0.5 rounded ml-1">
+                            {order.pickup_date}
+                          </strong>
+                          <span className="text-stone-400 ml-2">
+                            (下單時間：{new Date(order.created_at).toLocaleString('zh-TW')})
+                          </span>
                         </p>
+
                         {order.note && (
                           <p className="text-xs text-stone-600 bg-white p-2 rounded border border-stone-200 mt-2">
                             備註：{order.note}
@@ -647,7 +651,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 頁籤 3：垃圾桶 */}
+        {/* 🌟 頁籤 3：垃圾桶 */}
         {activeTab === 'trash' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <div className="flex justify-between items-center mb-6">
@@ -675,16 +679,13 @@ export default function AdminPage() {
                   >
                     <div className="space-y-1">
                       <div className="flex items-center space-x-3">
-                        <span className="font-bold text-lg text-stone-800">
+                        <span className="font-bold text-stone-800">
                           {order.customer_name}
                         </span>
                         <span className="text-stone-600 text-sm">📞 {order.customer_phone}</span>
-                        <span className="text-xs bg-stone-200 text-stone-700 px-2.5 py-0.5 rounded-full font-semibold">
-                          {order.pickup_type}
-                        </span>
                       </div>
-                      <p className="text-xs text-stone-500">
-                        預約取貨日期：{order.pickup_date} | 下單時間：{new Date(order.created_at).toLocaleString('zh-TW')}
+                      <p className="text-xs text-stone-600">
+                        ⏰ 預約取貨時間：<strong>{order.pickup_date}</strong>
                       </p>
                     </div>
 
@@ -704,7 +705,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 編輯 Modal 彈窗 (已移除數量/庫存欄位) */}
+        {/* 編輯 Modal 彈窗 */}
         {editingProduct && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-stone-200">
