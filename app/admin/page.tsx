@@ -19,7 +19,7 @@ interface Order {
   customer_name: string;
   customer_phone: string;
   pickup_type: string;
-  pickup_date: string; // 包含日期與時間，例如：2026-07-28 15:00
+  pickup_date: string;
   total_amount: number;
   items: any[];
   note: string;
@@ -40,7 +40,7 @@ export default function AdminPage() {
   const [name, setName] = useState<string>('');
   const [desc, setDesc] = useState<string>('');
   const [price, setPrice] = useState<string>('');
-  const [category, setCategory] = useState<string>('吐司類');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [customCategory, setCustomCategory] = useState<string>('');
   const [imageUrl, setImageUrl] = useState<string>('');
   const [uploadingImage, setUploadingImage] = useState<boolean>(false);
@@ -80,7 +80,13 @@ export default function AdminPage() {
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
       ]);
 
-      if (prodRes.data) setProducts(prodRes.data);
+      if (prodRes.data) {
+        setProducts(prodRes.data);
+        // 若尚未選擇預設類別，取第一個現有類別
+        if (prodRes.data.length > 0 && !selectedCategory) {
+          setSelectedCategory(prodRes.data[0].category || '吐司類');
+        }
+      }
       if (orderRes.data) setOrders(orderRes.data);
     } catch (err) {
       console.error('抓取資料失敗:', err);
@@ -94,6 +100,17 @@ export default function AdminPage() {
       fetchData();
     }
   }, [isAuthenticated]);
+
+  // 🌟 核心邏輯：從現有商品中提取所有「已建立的不重複類別」
+  const existingCategories = Array.from(
+    new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c) && c.trim() !== ''))
+  );
+
+  // 若資料庫完全沒資料，預設提供幾個常用選單
+  const defaultCategories = ['吐司類', '可頌類', '歐包類', '甜點類'];
+  const allAvailableCategories = Array.from(
+    new Set([...existingCategories, ...defaultCategories])
+  );
 
   // 切換商品上下架狀態
   const handleToggleProductActive = async (productId: number, currentIsActive: boolean) => {
@@ -237,7 +254,7 @@ export default function AdminPage() {
     }
   };
 
-  // 新增商品
+  // 🌟 核心修改：新增商品 (使用選擇的現有類別或新自訂類別)
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price) {
@@ -245,7 +262,10 @@ export default function AdminPage() {
       return;
     }
 
-    const finalCategory = category === '其他自訂' ? customCategory.trim() || '未分類' : category;
+    const finalCategory =
+      selectedCategory === '➕ 新增自訂類別'
+        ? customCategory.trim() || '未分類'
+        : selectedCategory || '未分類';
 
     setSubmitting(true);
     try {
@@ -263,11 +283,10 @@ export default function AdminPage() {
       if (error) {
         alert(`❌ 上架失敗：${error.message}`);
       } else {
-        alert('🎉 成功新增麵包商品！');
+        alert(`🎉 成功新增麵包商品至【${finalCategory}】！`);
         setName('');
         setDesc('');
         setPrice('');
-        setCategory('吐司類');
         setCustomCategory('');
         setImageUrl('');
         fetchData();
@@ -405,26 +424,31 @@ export default function AdminPage() {
                     />
                   </div>
 
+                  {/* 🌟 核心動態類別選單 */}
                   <div>
                     <label className="block text-sm font-medium mb-1">商品類別 *</label>
                     <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
                       className="w-full p-2.5 border border-stone-300 rounded-lg bg-white"
                     >
-                      <option value="吐司類">🍞 吐司類</option>
-                      <option value="可頌類">🥐 可頌類</option>
-                      <option value="歐包類">🥖 歐包類</option>
-                      <option value="甜點類">🍰 甜點類</option>
-                      <option value="其他自訂">➕ 其他自訂類別</option>
+                      {/* 自動渲染所有資料庫中已建立的類別 */}
+                      {allAvailableCategories.map((cat) => (
+                        <option key={cat} value={cat}>
+                          📁 {cat}
+                        </option>
+                      ))}
+                      <option value="➕ 新增自訂類別">➕ 新增自訂類別...</option>
                     </select>
-                    {category === '其他自訂' && (
+
+                    {/* 當選擇「新增自訂類別」時展開輸入框 */}
+                    {selectedCategory === '➕ 新增自訂類別' && (
                       <input
                         type="text"
                         value={customCategory}
                         onChange={(e) => setCustomCategory(e.target.value)}
-                        placeholder="請輸入自訂類別名稱"
-                        className="w-full p-2.5 border border-stone-300 rounded-lg mt-2 text-sm"
+                        placeholder="請輸入新類別名稱 (如: 貝果類)"
+                        className="w-full p-2.5 border border-stone-300 rounded-lg mt-2 text-sm bg-amber-50/50"
                         required
                       />
                     )}
@@ -543,7 +567,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🌟 頁籤 2：客戶預約單 (包含日期與時間高亮顯示) */}
+        {/* 頁籤 2：客戶預約單 */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
@@ -560,7 +584,7 @@ export default function AdminPage() {
                       key={order.id}
                       className="p-5 rounded-xl border border-stone-200 bg-stone-50 flex flex-col md:flex-row justify-between gap-4"
                     >
-                      <div className="space-y-1">
+                      <div className="space-y-2">
                         <div className="flex items-center space-x-3">
                           <span className="font-bold text-lg text-amber-950">
                             {order.customer_name}
@@ -571,15 +595,17 @@ export default function AdminPage() {
                           </span>
                         </div>
 
-                        {/* 🌟 核心高亮：顯示預約日期與具體取貨時間 */}
-                        <p className="text-xs text-stone-600">
-                          ⏰ 預約取貨時間：
-                          <strong className="text-amber-900 font-bold bg-amber-100 px-2 py-0.5 rounded ml-1">
-                            {order.pickup_date}
-                          </strong>
-                          <span className="text-stone-400 ml-2">
-                            (下單時間：{new Date(order.created_at).toLocaleString('zh-TW')})
-                          </span>
+                        <div className="bg-amber-100/90 border border-amber-300 p-2.5 rounded-lg inline-block">
+                          <p className="text-xs font-bold text-amber-950">
+                            ⏰ 預約取貨時間：
+                            <span className="text-sm font-extrabold text-amber-900 ml-1">
+                              {order.pickup_date}
+                            </span>
+                          </p>
+                        </div>
+
+                        <p className="text-[11px] text-stone-500">
+                          📝 顧客下單時間：{new Date(order.created_at).toLocaleString('zh-TW')}
                         </p>
 
                         {order.note && (
@@ -651,7 +677,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 🌟 頁籤 3：垃圾桶 */}
+        {/* 頁籤 3：垃圾桶 */}
         {activeTab === 'trash' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <div className="flex justify-between items-center mb-6">
@@ -684,8 +710,8 @@ export default function AdminPage() {
                         </span>
                         <span className="text-stone-600 text-sm">📞 {order.customer_phone}</span>
                       </div>
-                      <p className="text-xs text-stone-600">
-                        ⏰ 預約取貨時間：<strong>{order.pickup_date}</strong>
+                      <p className="text-xs text-amber-900 font-bold bg-amber-100/80 p-1.5 rounded inline-block">
+                        ⏰ 預約取貨時間：{order.pickup_date}
                       </p>
                     </div>
 

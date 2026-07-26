@@ -28,16 +28,15 @@ export default function HomePage() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [pickupType, setPickupType] = useState('到店自取 (復興店)');
   const [pickupDate, setPickupDate] = useState('');
-  const [pickupTime, setPickupTime] = useState('14:00'); // 預設 14:00
+  const [pickupTime, setPickupTime] = useState('14:00');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 🌟 計算「後天」的最小可選日期 (minDate)
+  // 計算「後天」的最小可選日期 (minDate)
   const [minDate, setMinDate] = useState('');
 
   useEffect(() => {
     const today = new Date();
-    // 增加 2 天取得後天日期
     today.setDate(today.getDate() + 2);
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -116,7 +115,6 @@ export default function HomePage() {
       return;
     }
 
-    // 再次檢查預約日期是否至少為後天
     if (minDate && pickupDate < minDate) {
       alert('預約取貨日需提前至少 2 天預訂，請選擇後天或之後的日期！');
       return;
@@ -148,7 +146,7 @@ export default function HomePage() {
       if (error) {
         alert(`❌ 預約失敗：${error.message}`);
       } else {
-        // 發送 Telegram 店家推播 (包含取貨時間)
+        // 發送 Telegram 店家推播
         fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -181,9 +179,10 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen bg-stone-50 text-stone-800 p-3 sm:p-6 md:p-12">
+      {/* 🌟 核心修改：標題更新為三日酵麵包預定系統 */}
       <header className="max-w-5xl mx-auto text-center mb-6 md:mb-10">
         <h1 className="text-3xl md:text-4xl font-bold text-amber-900 tracking-wide mb-1 md:mb-2">
-          🥖 threedays 烘焙手作
+          🥖 三日酵麵包預定系統
         </h1>
         <p className="text-xs md:text-sm text-stone-600">每日新鮮發酵，線上即時點單預約</p>
       </header>
@@ -371,7 +370,6 @@ export default function HomePage() {
                 </select>
               </div>
 
-              {/* 🌟 核心修改：預約日期 (限制後天起) 與 取貨時間 (14:00 - 00:00) */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-medium text-stone-600 mb-1">預約取貨日 *</label>
