@@ -103,7 +103,7 @@ export default function HomePage() {
 
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // 🌟 核心：商品分類與按「禮盒內含數量」精確排序邏輯
+  // 商品分類與類別內排序邏輯 (禮盒置後，其餘按數字排序)
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
     if (!acc[cat]) {
@@ -113,23 +113,19 @@ export default function HomePage() {
     return acc;
   }, {});
 
-  // 提取名稱中「內含數量」的輔助函式（例如："6入" -> 6, "8顆" -> 8）
   const extractQuantity = (name: string): number => {
     const match = name.match(/(\d+)\s*(入|個|顆|盒|隻|pcs)?/i) || name.match(/\d+/);
     return match ? parseInt(match[1], 10) : 999;
   };
 
-  // 對每個類別內部的商品進行排序
   Object.keys(categorizedProducts).forEach((cat) => {
     categorizedProducts[cat].sort((a, b) => {
       const isAGift = a.name.includes('禮盒');
       const isBGift = b.name.includes('禮盒');
 
-      // 1. 若其中一個是禮盒，另一個不是，強制把禮盒放後面
       if (isAGift && !isBGift) return 1;
       if (!isAGift && isBGift) return -1;
 
-      // 2. 若兩者都是禮盒，按「禮盒內含數量」由小到大排序 (例如：6入 < 8入 < 12入)
       if (isAGift && isBGift) {
         const qtyA = extractQuantity(a.name);
         const qtyB = extractQuantity(b.name);
@@ -138,7 +134,6 @@ export default function HomePage() {
         }
       }
 
-      // 3. 一般商品（非禮盒）按名稱中的數字排序，若無數字則按字串序
       const numA = a.name.match(/\d+/);
       const numB = b.name.match(/\d+/);
 
@@ -159,6 +154,21 @@ export default function HomePage() {
     return 0;
   });
 
+  // 🌟 新增：攔截日期選擇事件，阻擋週日與週一
+  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedDate = e.target.value;
+    if (selectedDate) {
+      const dateObj = new Date(selectedDate);
+      const day = dateObj.getDay(); // 0 是週日，1 是週一
+      if (day === 0 || day === 1) {
+        alert('⚠️ 週日與週一為公休日，請選擇其他營業日期！');
+        setPickupDate(''); // 清空無效選擇
+        return;
+      }
+    }
+    setPickupDate(selectedDate);
+  };
+
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -169,6 +179,14 @@ export default function HomePage() {
 
     if (!customerName.trim() || !customerPhone.trim() || !pickupDate) {
       alert('請完整填寫姓名、電話與預約取貨日期！');
+      return;
+    }
+
+    // 🌟 表單送出前的雙重防呆：阻擋週日與週一
+    const selectedDateObj = new Date(pickupDate);
+    const dayOfWeek = selectedDateObj.getDay();
+    if (dayOfWeek === 0 || dayOfWeek === 1) {
+      alert('⚠️ 週日與週一為公休日，無法預約取貨，請選擇其他日期！');
       return;
     }
 
@@ -354,34 +372,35 @@ export default function HomePage() {
               <span className="mr-1.5">📌</span> 預訂注意事項
             </h3>
 
-            <div className="space-y-2.5 text-xs text-stone-700 leading-relaxed">
+            {/* 🌟 新增與修改：根據您的需求重構的注意事項排版 */}
+            <div className="space-y-3 text-xs text-stone-700 leading-relaxed">
               <div className="font-bold text-rose-800 bg-rose-50 p-2 rounded-lg border border-rose-200 text-center space-y-0.5">
                 <p>《不接受當日預訂》</p>
                 <p>《當日請現場購買》</p>
               </div>
 
-              <div className="space-y-1 pt-1">
-                <p className="font-bold text-amber-900">▪ 預訂未滿 2000 元：</p>
+              <div className="space-y-0.5 pt-1">
+                <p className="font-bold text-amber-900">▪ 預訂未滿 200 元</p>
                 <p className="pl-3 text-stone-600">
-                  請直接至現場選購（12:00 - 13:00 品項齊全）
+                  請直接至現場選購（12:00-13:00 品項齊全）
                 </p>
               </div>
 
-              <div className="space-y-1">
-                <p className="font-bold text-amber-900">▪ 滿 2000 元以上 或 單品項 20 個：</p>
-                <p className="pl-3 text-stone-600">
-                  需提前 2 天預訂，付款成功即完成訂單
-                </p>
+              <div className="space-y-0.5">
+                <p className="font-bold text-amber-900">▪ 需提前 2 天預訂，付款成功即完成訂單</p>
               </div>
+
+              <ul className="space-y-1 text-stone-600 pl-1 list-none text-[11px] pt-1">
+                <li>*提早2天前預訂付款</li>
+                <li>*無外送服務，請至復興店取餐</li>
+              </ul>
 
               <hr className="border-amber-200/60 my-2" />
-
-              <ul className="space-y-1.5 text-stone-600 pl-1 list-disc list-inside text-[11px]">
-                <li>提早 2 天前預訂付款，若無提前預訂，恕不受理。</li>
-                <li>無外送服務，請至<strong>復興店</strong>取餐。</li>
-                <li>取餐時段為：<strong>14:00 ～ 18:00</strong>。</li>
-                <li>月餅禮盒預訂 <strong>1 盒起訂</strong>。</li>
-              </ul>
+              
+              <div className="space-y-1 text-[11px] text-stone-700">
+                <p>取餐時段為：<strong>14：00～00：00 (周日一公休)</strong></p>
+                <p className="text-amber-900 font-semibold">非營業時間可販售機取貨</p>
+              </div>
             </div>
           </div>
 
@@ -448,11 +467,12 @@ export default function HomePage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-medium text-stone-600 mb-1">預約取貨日 *</label>
+                  {/* 🌟 修改點：加入了 onChange={(e) => handleDateChange(e)} 來攔截特定星期 */}
                   <input
                     type="date"
                     min={minDate}
                     value={pickupDate}
-                    onChange={(e) => setPickupDate(e.target.value)}
+                    onChange={handleDateChange}
                     className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
                     required
                   />
