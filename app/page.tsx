@@ -117,6 +117,7 @@ export default function HomePage() {
     return 0;
   });
 
+  // 🌟 核心：完整組合日期與時間
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -136,6 +137,7 @@ export default function HomePage() {
 
     setSubmitting(true);
 
+    // 格式例如："2026-07-28 15:00"
     const fullPickupDateTime = `${pickupDate} ${pickupTime}`;
 
     try {
@@ -144,7 +146,7 @@ export default function HomePage() {
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
           pickup_type: pickupType,
-          pickup_date: fullPickupDateTime,
+          pickup_date: fullPickupDateTime, // 確保寫入包含時間的完整字串
           total_amount: totalPrice,
           items: cartItems.map((item) => ({
             id: item.id,
@@ -195,7 +197,6 @@ export default function HomePage() {
       className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-repeat"
       style={{ backgroundImage: "url('/bg-pattern.jpg')", backgroundSize: '240px auto' }}
     >
-      {/* 🌟 修改重點：LOGO 放大至手機螢幕寬度 */}
       <header className="max-w-5xl mx-auto text-center mb-6 md:mb-10 flex flex-col items-center px-2">
         <img
           src="/logo.png"

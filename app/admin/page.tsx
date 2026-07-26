@@ -19,7 +19,7 @@ interface Order {
   customer_name: string;
   customer_phone: string;
   pickup_type: string;
-  pickup_date: string; // 完整包含日期與時間，如 "2026-07-28 15:00"
+  pickup_date: string;
   total_amount: number;
   items: any[];
   note: string;
@@ -610,7 +610,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 🌟 頁籤 2：客戶預約單 (強化完整日期與時間呈現) */}
+        {/* 🌟 頁籤 2：客戶預約單 (強化預約取貨時間顯示) */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
@@ -622,6 +622,14 @@ export default function AdminPage() {
               <div className="space-y-4">
                 {activeOrders.map((order) => {
                   const isShipped = order.status === 'completed' || order.status === '已出貨';
+                  
+                  // 🌟 核心防呆：確保有顯示完整取貨時間
+                  const displayPickupDate = order.pickup_date
+                    ? order.pickup_date.includes(':')
+                      ? order.pickup_date
+                      : `${order.pickup_date} (未指定時間)`
+                    : '未指定取貨日';
+
                   return (
                     <div
                       key={order.id}
@@ -638,12 +646,12 @@ export default function AdminPage() {
                           </span>
                         </div>
 
-                        {/* 🌟 核心高亮：完整顯示預約日期與時間 (如: 2026-07-28 15:00) */}
+                        {/* 🌟 核心高亮：呈現預約取貨時間 (如 2026-07-28 15:00) */}
                         <div className="bg-amber-100/90 border border-amber-300 p-2.5 rounded-lg inline-block">
                           <p className="text-xs font-bold text-amber-950 flex items-center">
                             <span>⏰ 預約取貨時間：</span>
-                            <span className="text-sm font-extrabold text-amber-900 ml-1.5 bg-white px-2 py-0.5 rounded border border-amber-200">
-                              {order.pickup_date || '未指定時間'}
+                            <span className="text-sm font-extrabold text-amber-900 ml-1.5 bg-white px-2.5 py-0.5 rounded border border-amber-200">
+                              {displayPickupDate}
                             </span>
                           </p>
                         </div>
