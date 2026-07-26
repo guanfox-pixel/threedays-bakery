@@ -129,7 +129,7 @@ export default function HomePage() {
   // 商品原價總額（不含運費）
   const productSubtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // 🌟 核心計算：自動計算宅配運費
+  // 自動計算宅配運費
   const calculateDeliveryFee = (): number => {
     if (pickupType !== '宅配快遞' || cartItems.length === 0) return 0;
 
@@ -174,7 +174,7 @@ export default function HomePage() {
   const deliveryFee = calculateDeliveryFee();
   const totalPrice = productSubtotal + deliveryFee;
 
-  // 商品分類與類別內排序邏輯
+  // 商品分類與排序
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
     if (!acc[cat]) {
@@ -200,9 +200,7 @@ export default function HomePage() {
       if (isAGift && isBGift) {
         const qtyA = extractQuantity(a.name);
         const qtyB = extractQuantity(b.name);
-        if (qtyA !== qtyB) {
-          return qtyA - qtyB;
-        }
+        if (qtyA !== qtyB) return qtyA - qtyB;
       }
 
       const numA = a.name.match(/\d+/);
@@ -237,7 +235,6 @@ export default function HomePage() {
       return;
     }
 
-    // 🌟 核心防呆：未滿 200 元限制送出訂單
     if (productSubtotal < 200) {
       alert('⚠️ 預訂金額未滿 200 元，無法送出預約！\n請直接至現場選購（12:00–13:00品項最齊全），或增加訂購數量。');
       return;
@@ -464,6 +461,31 @@ export default function HomePage() {
                 <p className="pl-3 text-stone-600 font-medium">（12:00–13:00 品項最齊全）</p>
               </div>
 
+              {/* 🌟 核心新增：宅配運費說明備註區塊 */}
+              <div className="bg-white/80 p-3 rounded-xl border border-amber-300/80 space-y-2">
+                <p className="font-bold text-amber-950 flex items-center">
+                  🚚 宅配運費說明：
+                </p>
+                
+                <div className="space-y-1 pl-1">
+                  <p className="font-bold text-amber-900">📦 麵包冷凍宅配運費：</p>
+                  <ul className="pl-3 text-stone-600 space-y-0.5 text-[11px]">
+                    <li>• 訂購金額 0～500 元……運費 160 元</li>
+                    <li>• 訂購金額 501～1000 元……運費 220 元</li>
+                    <li>• 訂購金額 1000～2000 元……運費 290 元</li>
+                  </ul>
+                </div>
+
+                <div className="space-y-1 pl-1 pt-1 border-t border-amber-200/60">
+                  <p className="font-bold text-amber-900">🥮 月餅禮盒宅配運費：</p>
+                  <ul className="pl-3 text-stone-600 space-y-0.5 text-[11px]">
+                    <li>• 2 盒以下……運費 125 元</li>
+                    <li>• 3～5 盒……運費 205 元</li>
+                    <li>• 6 盒以上……<span className="font-bold text-emerald-700">免運</span></li>
+                  </ul>
+                </div>
+              </div>
+
               <div className="space-y-0.5 bg-amber-100/60 p-2 rounded-lg border border-amber-200/80">
                 <p className="font-bold text-amber-900">
                   ▪ 訂單送出後，點擊客服，核對訂單並取得匯款帳號；付款完成後才算完成訂單。
@@ -529,7 +551,6 @@ export default function HomePage() {
               </div>
             )}
 
-            {/* 🌟 未滿 200 元提示標語 */}
             {productSubtotal > 0 && productSubtotal < 200 && (
               <div className="bg-rose-50 text-rose-700 text-xs p-2.5 rounded-lg border border-rose-200 mb-3 font-medium">
                 ⚠️ 預訂金額未滿 200 元（目前 ${productSubtotal} 元），無法線上預約，請至現場購買或加購商品。
