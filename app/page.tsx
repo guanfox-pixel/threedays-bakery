@@ -103,6 +103,7 @@ export default function HomePage() {
 
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
+  // 🌟 核心：商品分類與按「禮盒內含數量」精確排序邏輯
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
     if (!acc[cat]) {
@@ -111,6 +112,44 @@ export default function HomePage() {
     acc[cat].push(product);
     return acc;
   }, {});
+
+  // 提取名稱中「內含數量」的輔助函式（例如："6入" -> 6, "8顆" -> 8）
+  const extractQuantity = (name: string): number => {
+    const match = name.match(/(\d+)\s*(入|個|顆|盒|隻|pcs)?/i) || name.match(/\d+/);
+    return match ? parseInt(match[1], 10) : 999;
+  };
+
+  // 對每個類別內部的商品進行排序
+  Object.keys(categorizedProducts).forEach((cat) => {
+    categorizedProducts[cat].sort((a, b) => {
+      const isAGift = a.name.includes('禮盒');
+      const isBGift = b.name.includes('禮盒');
+
+      // 1. 若其中一個是禮盒，另一個不是，強制把禮盒放後面
+      if (isAGift && !isBGift) return 1;
+      if (!isAGift && isBGift) return -1;
+
+      // 2. 若兩者都是禮盒，按「禮盒內含數量」由小到大排序 (例如：6入 < 8入 < 12入)
+      if (isAGift && isBGift) {
+        const qtyA = extractQuantity(a.name);
+        const qtyB = extractQuantity(b.name);
+        if (qtyA !== qtyB) {
+          return qtyA - qtyB;
+        }
+      }
+
+      // 3. 一般商品（非禮盒）按名稱中的數字排序，若無數字則按字串序
+      const numA = a.name.match(/\d+/);
+      const numB = b.name.match(/\d+/);
+
+      if (numA && numB) {
+        const diff = parseInt(numA[0], 10) - parseInt(numB[0], 10);
+        if (diff !== 0) return diff;
+      }
+
+      return a.name.localeCompare(b.name, 'zh-Hant');
+    });
+  });
 
   const sortedCategoryNames = Object.keys(categorizedProducts).sort((a, b) => {
     const isAPinned = pinnedCategories.includes(a);
@@ -206,7 +245,6 @@ export default function HomePage() {
           />
         </div>
         
-        {/* 🌟 核心修改重點：將標語修改為「熱量就該浪費在美好的菠蘿上」 */}
         <p className="text-xs md:text-sm font-semibold text-stone-600 bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full border border-stone-200/80 shadow-xs mx-3">
           熱量就該浪費在美好的菠蘿上
         </p>
