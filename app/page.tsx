@@ -33,12 +33,12 @@ export default function HomePage() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 計算「後天」的最小可選日期 (minDate)
+  // 計算「後天」的最小可選日期字串 (YYYY-MM-DD)
   const [minDate, setMinDate] = useState('');
 
   useEffect(() => {
     const today = new Date();
-    today.setDate(today.getDate() + 2);
+    today.setDate(today.getDate() + 2); // 至少提前 2 天
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
@@ -117,7 +117,6 @@ export default function HomePage() {
     return 0;
   });
 
-  // 🌟 核心：完整組合日期與時間
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -125,20 +124,21 @@ export default function HomePage() {
       alert('請至少選擇一項麵包商品！');
       return;
     }
+
     if (!customerName.trim() || !customerPhone.trim() || !pickupDate) {
       alert('請完整填寫姓名、電話與預約取貨日期！');
       return;
     }
 
     if (minDate && pickupDate < minDate) {
-      alert('預約取貨日需提前至少 2 天預訂，請選擇後天或之後的日期！');
+      alert(`⚠️ 預約失敗：取貨日需提前至少 2 天預訂！\n最早可預約日期為：${minDate}`);
       return;
     }
 
     setSubmitting(true);
 
-    // 格式例如："2026-07-28 15:00"
-    const fullPickupDateTime = `${pickupDate} ${pickupTime}`;
+    const selectedTime = pickupTime || '14:00';
+    const fullPickupDateTime = `${pickupDate.trim()} ${selectedTime.trim()}`;
 
     try {
       const { error } = await supabase.from('orders').insert([
@@ -146,7 +146,7 @@ export default function HomePage() {
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
           pickup_type: pickupType,
-          pickup_date: fullPickupDateTime, // 確保寫入包含時間的完整字串
+          pickup_date: fullPickupDateTime,
           total_amount: totalPrice,
           items: cartItems.map((item) => ({
             id: item.id,
@@ -193,17 +193,17 @@ export default function HomePage() {
   };
 
   return (
-    <main
-      className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-repeat"
-      style={{ backgroundImage: "url('/bg-pattern.jpg')", backgroundSize: '240px auto' }}
-    >
-      <header className="max-w-5xl mx-auto text-center mb-6 md:mb-10 flex flex-col items-center px-2">
-        <img
-          src="/logo.png"
-          alt="三日酵 THREEDAYS"
-          className="w-full max-w-sm sm:max-w-md md:max-w-lg h-auto object-contain drop-shadow-sm mb-2"
-        />
-        <p className="text-xs md:text-sm font-semibold text-stone-600 bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full border border-stone-200/80 shadow-xs">
+    // 🌟 核心修改重點：已移除 style={{ backgroundImage: ... }}，並改用 bg-stone-50 純色背景
+    <main className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-stone-50 overflow-x-hidden">
+      <header className="-mx-3 -mt-3 sm:mx-auto sm:mt-0 max-w-5xl text-center mb-6 md:mb-10 flex flex-col items-center">
+        <div className="w-full sm:max-w-md md:max-w-lg">
+          <img
+            src="/logo.png"
+            alt="三日酵 THREEDAYS"
+            className="w-full h-auto block object-cover drop-shadow-sm mb-3"
+          />
+        </div>
+        <p className="text-xs md:text-sm font-semibold text-stone-600 bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full border border-stone-200/80 shadow-xs mx-3">
           每日新鮮發酵，線上即時點單預約
         </p>
       </header>
@@ -214,13 +214,15 @@ export default function HomePage() {
           {errorMsg && <p className="text-red-500 font-semibold text-sm">{errorMsg}</p>}
 
           {!loading && !errorMsg && products.length === 0 && (
-            <p className="text-stone-400 text-sm bg-white/90 p-4 rounded-xl text-center">目前尚無上架商品，請至後台新增！</p>
+            <p className="text-stone-400 text-sm bg-white p-4 rounded-xl text-center border border-stone-200">
+              目前尚無上架商品，請至後台新增！
+            </p>
           )}
 
           {!loading &&
             sortedCategoryNames.map((categoryName) => (
               <div key={categoryName} className="space-y-3">
-                <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-300/80 pb-2 flex items-center bg-white/80 backdrop-blur-xs px-3 py-1.5 rounded-lg border">
+                <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-300/80 pb-2 flex items-center bg-white px-3 py-1.5 rounded-lg border border-stone-200">
                   <span>{categoryName}</span>
                   {pinnedCategories.includes(categoryName) && (
                     <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-normal">
@@ -235,7 +237,7 @@ export default function HomePage() {
                     return (
                       <div
                         key={item.id}
-                        className="bg-white/95 backdrop-blur-xs rounded-xl md:rounded-2xl overflow-hidden shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition"
+                        className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition"
                       >
                         <div>
                           {item.image_url ? (
@@ -295,7 +297,7 @@ export default function HomePage() {
         </section>
 
         <section className="space-y-6 h-fit sticky top-6">
-          <div className="bg-amber-50/95 backdrop-blur-xs p-5 rounded-2xl border border-amber-200/90 shadow-sm text-stone-800">
+          <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 shadow-sm text-stone-800">
             <h3 className="font-bold text-amber-950 text-base mb-3 flex items-center border-b border-amber-200/60 pb-2">
               <span className="mr-1.5">📌</span> 預訂注意事項
             </h3>
@@ -331,7 +333,7 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="bg-white/95 backdrop-blur-xs p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
+          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-lg md:text-xl font-bold text-amber-950 mb-4">🛒 預約結帳單</h2>
 
             {cartItems.length === 0 ? (
