@@ -34,6 +34,7 @@ export default function AdminPage() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [pinnedCategories, setPinnedCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // 新增商品 State
@@ -75,19 +76,22 @@ export default function AdminPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes] = await Promise.all([
+      const [prodRes, orderRes, pinRes] = await Promise.all([
         supabase.from('products').select('*').order('id', { ascending: false }),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
+        supabase.from('category_settings').select('*'),
       ]);
 
       if (prodRes.data) {
         setProducts(prodRes.data);
-        // 若尚未選擇預設類別，取第一個現有類別
         if (prodRes.data.length > 0 && !selectedCategory) {
           setSelectedCategory(prodRes.data[0].category || '吐司類');
         }
       }
       if (orderRes.data) setOrders(orderRes.data);
+      if (pinRes.data) {
+        setPinnedCategories(pinRes.data.filter((c) => c.is_pinned).map((c) => c.category_name));
+      }
     } catch (err) {
       console.error('抓取資料失敗:', err);
     } finally {
@@ -101,16 +105,40 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 🌟 核心邏輯：從現有商品中提取所有「已建立的不重複類別」
+  // 現有類別清單
   const existingCategories = Array.from(
     new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c) && c.trim() !== ''))
   );
-
-  // 若資料庫完全沒資料，預設提供幾個常用選單
   const defaultCategories = ['吐司類', '可頌類', '歐包類', '甜點類'];
   const allAvailableCategories = Array.from(
     new Set([...existingCategories, ...defaultCategories])
   );
+
+  // 🌟 核心功能：切換類別置頂狀態
+  const handleToggleCategoryPin = async (catName: string) => {
+    const isCurrentlyPinned = pinnedCategories.includes(catName);
+    const targetState = !isCurrentlyPinned;
+
+    try {
+      setPinnedCategories((prev) =>
+        targetState ? [...prev, catName] : prev.filter((c) => c !== catName)
+      );
+
+      const { error } = await supabase
+        .from('category_settings')
+        .upsert({ category_name: catName, is_pinned: targetState });
+
+      if (error) {
+        alert(`❌ 更新類別置頂失敗：${error.message}`);
+        fetchData();
+      } else {
+        alert(targetState ? `📌 已將【${catName}】設為前台置頂！` : `已取消【${catName}】置頂！`);
+      }
+    } catch (err: any) {
+      alert(`例外錯誤：${err.message}`);
+      fetchData();
+    }
+  };
 
   // 切換商品上下架狀態
   const handleToggleProductActive = async (productId: number, currentIsActive: boolean) => {
@@ -254,7 +282,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🌟 核心修改：新增商品 (使用選擇的現有類別或新自訂類別)
+  // 新增商品
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price) {
@@ -407,6 +435,38 @@ export default function AdminPage() {
         {/* 頁籤 1：商品管理 */}
         {activeTab === 'products' && (
           <div className="space-y-10">
+            {/* 🌟 核心新增：類別置頂設定區塊 */}
+            <section className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-sm">
+              <h2 className="text-base font-bold text-amber-950 mb-2 flex items-center">
+                📌 設定前台第一個顯示的「置頂麵包類別」
+              </h2>
+              <p className="text-xs text-stone-600 mb-4">
+                點擊類別即可進行置頂/取消置頂，置頂類別會優先在顧客前台排在第一個！
+              </p>
+
+              <div className="flex flex-wrap gap-2.5">
+                {allAvailableCategories.map((catName) => {
+                  const isPinned = pinnedCategories.includes(catName);
+                  return (
+                    <button
+                      key={catName}
+                      type="button"
+                      onClick={() => handleToggleCategoryPin(catName)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
+                        isPinned
+                          ? 'bg-amber-800 text-white shadow-sm ring-2 ring-amber-600'
+                          : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-100'
+                      }`}
+                    >
+                      <span>{isPinned ? '📌' : '📁'}</span>
+                      <span>{catName}</span>
+                      {isPinned && <span className="text-[10px] bg-amber-950 px-1.5 py-0.2 rounded-full">首位置頂</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
             {/* 新增商品表單 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">➕ 新增麵包品項</h2>
@@ -424,7 +484,6 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  {/* 🌟 核心動態類別選單 */}
                   <div>
                     <label className="block text-sm font-medium mb-1">商品類別 *</label>
                     <select
@@ -432,22 +491,20 @@ export default function AdminPage() {
                       onChange={(e) => setSelectedCategory(e.target.value)}
                       className="w-full p-2.5 border border-stone-300 rounded-lg bg-white"
                     >
-                      {/* 自動渲染所有資料庫中已建立的類別 */}
                       {allAvailableCategories.map((cat) => (
                         <option key={cat} value={cat}>
-                          📁 {cat}
+                          📁 {cat} {pinnedCategories.includes(cat) ? '(📌 已置頂)' : ''}
                         </option>
                       ))}
                       <option value="➕ 新增自訂類別">➕ 新增自訂類別...</option>
                     </select>
 
-                    {/* 當選擇「新增自訂類別」時展開輸入框 */}
                     {selectedCategory === '➕ 新增自訂類別' && (
                       <input
                         type="text"
                         value={customCategory}
                         onChange={(e) => setCustomCategory(e.target.value)}
-                        placeholder="請輸入新類別名稱 (如: 貝果類)"
+                        placeholder="請輸入新類別名稱"
                         className="w-full p-2.5 border border-stone-300 rounded-lg mt-2 text-sm bg-amber-50/50"
                         required
                       />

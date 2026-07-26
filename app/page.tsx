@@ -19,6 +19,7 @@ interface CartItem extends Product {
 
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [pinnedCategories, setPinnedCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -44,21 +45,31 @@ export default function HomePage() {
     setMinDate(`${yyyy}-${mm}-${dd}`);
   }, []);
 
-  // 1. 抓取已上架商品清單 (is_active = true)
+  // 1. 抓取已上架商品清單與置頂類別設定
   const fetchProducts = async () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('is_active', true)
-        .order('id', { ascending: true });
+      const [prodRes, pinRes] = await Promise.all([
+        supabase
+          .from('products')
+          .select('*')
+          .eq('is_active', true)
+          .order('id', { ascending: true }),
+        supabase
+          .from('category_settings')
+          .select('category_name')
+          .eq('is_pinned', true),
+      ]);
 
-      if (error) {
-        setErrorMsg(`無法讀取商品：${error.message}`);
-      } else if (data) {
-        setProducts(data);
+      if (prodRes.error) {
+        setErrorMsg(`無法讀取商品：${prodRes.error.message}`);
+      } else if (prodRes.data) {
+        setProducts(prodRes.data);
+      }
+
+      if (pinRes.data) {
+        setPinnedCategories(pinRes.data.map((c) => c.category_name));
       }
     } catch (err: any) {
       setErrorMsg(`連線例外：${err.message}`);
@@ -92,7 +103,7 @@ export default function HomePage() {
 
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // 分區邏輯：按 category 分組
+  // 分區與排序邏輯
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
     if (!acc[cat]) {
@@ -101,6 +112,14 @@ export default function HomePage() {
     acc[cat].push(product);
     return acc;
   }, {});
+
+  const sortedCategoryNames = Object.keys(categorizedProducts).sort((a, b) => {
+    const isAPinned = pinnedCategories.includes(a);
+    const isBPinned = pinnedCategories.includes(b);
+    if (isAPinned && !isBPinned) return -1;
+    if (!isAPinned && isBPinned) return 1;
+    return 0;
+  });
 
   // 4. 送出預約訂單
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -146,7 +165,6 @@ export default function HomePage() {
       if (error) {
         alert(`❌ 預約失敗：${error.message}`);
       } else {
-        // 發送 Telegram 店家推播
         fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -178,13 +196,21 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen bg-stone-50 text-stone-800 p-3 sm:p-6 md:p-12">
-      {/* 🌟 核心修改：標題更新為三日酵麵包預定系統 */}
-      <header className="max-w-5xl mx-auto text-center mb-6 md:mb-10">
-        <h1 className="text-3xl md:text-4xl font-bold text-amber-900 tracking-wide mb-1 md:mb-2">
-          🥖 三日酵麵包預定系統
-        </h1>
-        <p className="text-xs md:text-sm text-stone-600">每日新鮮發酵，線上即時點單預約</p>
+    // 🌟 1. 核心修改：套用重複麵包印花底圖背景
+    <main
+      className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-repeat"
+      style={{ backgroundImage: "url('/bg-pattern.jpg')", backgroundSize: '240px auto' }}
+    >
+      {/* 🌟 2. 核心修改：頂部 LOGO 圖片替換原文字標題 */}
+      <header className="max-w-5xl mx-auto text-center mb-6 md:mb-10 flex flex-col items-center">
+        <img
+          src="/logo.png"
+          alt="三日酵 THREEDAYS"
+          className="w-44 sm:w-56 md:w-64 h-auto object-contain drop-shadow-sm mb-2"
+        />
+        <p className="text-xs md:text-sm font-semibold text-stone-600 bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full border border-stone-200/80 shadow-xs">
+          每日新鮮發酵，線上即時點單預約
+        </p>
       </header>
 
       <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -194,14 +220,19 @@ export default function HomePage() {
           {errorMsg && <p className="text-red-500 font-semibold text-sm">{errorMsg}</p>}
 
           {!loading && !errorMsg && products.length === 0 && (
-            <p className="text-stone-400 text-sm">目前尚無上架商品，請至後台新增！</p>
+            <p className="text-stone-400 text-sm bg-white/90 p-4 rounded-xl text-center">目前尚無上架商品，請至後台新增！</p>
           )}
 
           {!loading &&
-            Object.keys(categorizedProducts).map((categoryName) => (
+            sortedCategoryNames.map((categoryName) => (
               <div key={categoryName} className="space-y-3">
-                <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-200 pb-2 flex items-center">
-                  <span className="mr-2">🥖</span> {categoryName}
+                <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-300/80 pb-2 flex items-center bg-white/80 backdrop-blur-xs px-3 py-1.5 rounded-lg border">
+                  <span>{categoryName}</span>
+                  {pinnedCategories.includes(categoryName) && (
+                    <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-normal">
+                      熱門推薦
+                    </span>
+                  )}
                 </h2>
 
                 <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
@@ -210,7 +241,7 @@ export default function HomePage() {
                     return (
                       <div
                         key={item.id}
-                        className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm border border-stone-200 flex flex-col justify-between"
+                        className="bg-white/95 backdrop-blur-xs rounded-xl md:rounded-2xl overflow-hidden shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition"
                       >
                         <div>
                           {item.image_url ? (
@@ -273,7 +304,7 @@ export default function HomePage() {
         {/* 右側：預訂注意事項 + 購物車預約結帳單 */}
         <section className="space-y-6 h-fit sticky top-6">
           {/* 預訂注意事項卡片 */}
-          <div className="bg-amber-50/80 p-5 rounded-2xl border border-amber-200/80 shadow-sm text-stone-800">
+          <div className="bg-amber-50/95 backdrop-blur-xs p-5 rounded-2xl border border-amber-200/90 shadow-sm text-stone-800">
             <h3 className="font-bold text-amber-950 text-base mb-3 flex items-center border-b border-amber-200/60 pb-2">
               <span className="mr-1.5">📌</span> 預訂注意事項
             </h3>
@@ -310,7 +341,7 @@ export default function HomePage() {
           </div>
 
           {/* 預約結帳單 */}
-          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
+          <div className="bg-white/95 backdrop-blur-xs p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-lg md:text-xl font-bold text-amber-950 mb-4">🛒 預約結帳單</h2>
 
             {cartItems.length === 0 ? (
@@ -342,7 +373,7 @@ export default function HomePage() {
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
                   placeholder="王小明"
-                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
+                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
                   required
                 />
               </div>
@@ -354,7 +385,7 @@ export default function HomePage() {
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
                   placeholder="0912345678"
-                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
+                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
                   required
                 />
               </div>
@@ -378,7 +409,7 @@ export default function HomePage() {
                     min={minDate}
                     value={pickupDate}
                     onChange={(e) => setPickupDate(e.target.value)}
-                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
+                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
                     required
                   />
                 </div>
@@ -413,14 +444,14 @@ export default function HomePage() {
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="如有特殊需求請註明"
-                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
+                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={submitting || cartItems.length === 0}
-                className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold text-xs sm:text-sm hover:bg-amber-900 transition disabled:bg-stone-300 mt-2"
+                className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold text-xs sm:text-sm hover:bg-amber-900 transition disabled:bg-stone-300 mt-2 shadow-sm"
               >
                 {submitting ? '送出預約中...' : '送出麵包預約單'}
               </button>
