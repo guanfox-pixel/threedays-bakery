@@ -31,6 +31,7 @@ export default function HomePage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [pickupType, setPickupType] = useState('到店自取 (復興店)');
+  const [deliveryAddress, setDeliveryAddress] = useState(''); // 🌟 新增：宅配地址 State
   const [pickupDate, setPickupDate] = useState('');
   const [pickupTime, setPickupTime] = useState('14:00');
   const [note, setNote] = useState('');
@@ -39,7 +40,7 @@ export default function HomePage() {
   // 計算「最早可預約日期」字串 (YYYY-MM-DD)
   const [minDate, setMinDate] = useState('');
 
-  // 🌟 時區安全的日期字串轉 Date 物件函式，避免時區偏移問題
+  // 時區安全的日期字串轉 Date 物件函式
   const parseLocalDate = (dateStr: string): Date | null => {
     if (!dateStr) return null;
     const parts = dateStr.split('-');
@@ -50,7 +51,7 @@ export default function HomePage() {
     return new Date(year, month, day);
   };
 
-  // 🌟 判斷是否為公休日（週日：0，週一：1）
+  // 判斷是否為公休日（週日：0，週一：1）
   const isClosedDay = (dateStr: string): boolean => {
     const d = parseLocalDate(dateStr);
     if (!d) return false;
@@ -62,7 +63,6 @@ export default function HomePage() {
     const today = new Date();
     today.setDate(today.getDate() + 2); // 至少提前 2 天預訂
 
-    // 如果提前兩天的日期剛好是週日 (0) 或週一 (1)，順延至週二
     while (today.getDay() === 0 || today.getDay() === 1) {
       today.setDate(today.getDate() + 1);
     }
@@ -128,7 +128,7 @@ export default function HomePage() {
 
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // 商品分類與類別內排序邏輯 (禮盒置後，其餘按內含數量與數字排序)
+  // 商品分類與類別內排序邏輯
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
     if (!acc[cat]) {
@@ -179,7 +179,6 @@ export default function HomePage() {
     return 0;
   });
 
-  // 🌟 修改：平滑更新日期 State，不在此彈出 alert 避免手機跳出無限迴圈
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPickupDate(e.target.value);
   };
@@ -197,7 +196,11 @@ export default function HomePage() {
       return;
     }
 
-    // 🌟 表單送出時進行驗證：阻擋週日與週一
+    if (pickupType === '宅配快遞' && !deliveryAddress.trim()) {
+      alert('選擇宅配快遞時，請務必填寫宅配收件地址！');
+      return;
+    }
+
     if (isClosedDay(pickupDate)) {
       alert('⚠️ 週日與週一為公休日，無法安排取貨，請選擇其他日期！');
       return;
@@ -213,6 +216,11 @@ export default function HomePage() {
     const selectedTime = pickupTime || '14:00';
     const fullPickupDateTime = `${pickupDate.trim()} ${selectedTime.trim()}`;
 
+    // 🌟 組合備註與地址資訊
+    const finalNote = pickupType === '宅配快遞'
+      ? `【宅配地址】：${deliveryAddress.trim()}${note.trim() ? `\n【備註】：${note.trim()}` : ''}`
+      : note.trim();
+
     try {
       const { error } = await supabase.from('orders').insert([
         {
@@ -227,7 +235,7 @@ export default function HomePage() {
             price: item.price,
             quantity: item.quantity,
           })),
-          note: note.trim(),
+          note: finalNote,
           status: 'pending',
         },
       ]);
@@ -245,14 +253,15 @@ export default function HomePage() {
             pickupDate: fullPickupDateTime,
             items: cartItems,
             totalAmount: totalPrice,
-            note: note.trim(),
+            note: finalNote,
           }),
         }).catch((err) => console.error('推播失敗:', err));
 
-        alert('🎉 預約成功！我們將會為您準備新鮮手作麵包！');
+        alert('🎉 預約單已成功送出！\n\n請點擊頁面上的【💬 聯繫 LINE 官方客服】按鈕，核對訂單並取得匯款帳號，完成付款後訂單才正式成立喔！');
         setCart({});
         setCustomerName('');
         setCustomerPhone('');
+        setDeliveryAddress('');
         setPickupDate('');
         setPickupTime('14:00');
         setNote('');
@@ -380,40 +389,54 @@ export default function HomePage() {
         </section>
 
         <section className="space-y-6 h-fit sticky top-6">
-          <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 shadow-sm text-stone-800">
-            <h3 className="font-bold text-amber-950 text-base mb-3 flex items-center border-b border-amber-200/60 pb-2">
+          <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 shadow-sm text-stone-800 space-y-4">
+            <h3 className="font-bold text-amber-950 text-base flex items-center border-b border-amber-200/60 pb-2">
               <span className="mr-1.5">📌</span> 預訂注意事項
             </h3>
 
             <div className="space-y-3 text-xs text-stone-700 leading-relaxed">
-              <div className="font-bold text-rose-800 bg-rose-50 p-2 rounded-lg border border-rose-200 text-center space-y-0.5">
-                <p>《不接受當日預訂》</p>
-                <p>《當日請現場購買》</p>
+              <div className="font-bold text-rose-800 bg-rose-50 p-2.5 rounded-lg border border-rose-200 text-center space-y-0.5">
+                <p>🔸 不接受當日預訂</p>
+                <p>🔸 當日請直接至現場購買</p>
               </div>
 
-              <div className="space-y-0.5 pt-1">
-                <p className="font-bold text-amber-900">▪ 預訂未滿 200 元</p>
-                <p className="pl-3 text-stone-600">
-                  請直接至現場選購（12:00-13:00 品項齊全）
+              <div className="space-y-1 pt-1">
+                <p className="font-bold text-amber-950">
+                  ▪ 消費滿 200 元，請於 2 天前完成預訂；付款完成後才算訂單成立。
                 </p>
               </div>
 
               <div className="space-y-0.5">
-                <p className="font-bold text-amber-900">▪ 需提前 2 天預訂，付款成功即完成訂單</p>
+                <p className="font-bold text-amber-950">▪ 預訂未滿 200 元，請直接至現場選購。</p>
+                <p className="pl-3 text-stone-600 font-medium">（12:00–13:00 品項最齊全）</p>
               </div>
 
-              <ul className="space-y-1 text-stone-600 pl-1 list-none text-[11px] pt-1">
-                <li>*提早2天前預訂付款</li>
-                <li>*無外送服務，請至復興店取餐</li>
-              </ul>
+              <div className="space-y-0.5 bg-amber-100/60 p-2 rounded-lg border border-amber-200/80">
+                <p className="font-bold text-amber-900">
+                  ▪ 訂單送出後，點擊客服，核對訂單並取得匯款帳號；付款完成後才算完成訂單。
+                </p>
+              </div>
 
               <hr className="border-amber-200/60 my-2" />
-              
-              <div className="space-y-1 text-[11px] text-stone-700">
-                <p>取餐時段為：<strong>14：00～00：00 (周日一公休)</strong></p>
-                <p className="text-amber-900 font-semibold">非營業時間可販售機取貨</p>
+
+              <div className="space-y-1 text-[11px] text-stone-800">
+                <p className="font-bold text-stone-900">⏰ 取餐時段：</p>
+                <p className="pl-2">• 14:00–18:00 ｜ 櫃檯取餐</p>
+                <p className="pl-2">• 18:00–00:00 ｜ 無人商店（冷藏保存）取餐</p>
               </div>
             </div>
+
+            <a
+              href="https://line.me/R/ti/p/@399mteem"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm transition transform active:scale-95"
+            >
+              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.121.303.079.778.039 1.085l-.171 1.027c-.053.303-.242 1.186.521.648.763-.537 4.113-2.422 5.613-4.144 1.258-1.42 1.885-2.88 1.885-4.316zm-16.892 2.372h-2.001v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h2.515c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.016 0h-1.028v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h1.542c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.83 0h-1.398l-1.528-2.222v2.222c0 .284-.23.514-.514.514s-.23-.514-.514-.514v-4.288c0-.284.23-.514.514-.514h1.398l1.528 2.222v-2.222c0-.284.23-.514.514-.514s.514.23.514.514v4.288c0 .284-.23-.514-.514.514zm4.116-2.746h-1.543v.715h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-1.543v.988h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-2.057c-.284 0-.514-.23-.514-.514v-4.288c0-.284.23-.514.514-.514h2.057c.284 0 .514.23.514.514s-.23.514-.514.514z" />
+              </svg>
+              <span>點擊加入 LINE 官方客服對談</span>
+            </a>
           </div>
 
           <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
@@ -470,15 +493,35 @@ export default function HomePage() {
                 <select
                   value={pickupType}
                   onChange={(e) => setPickupType(e.target.value)}
-                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-stone-50"
+                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
                 >
                   <option value="到店自取 (復興店)">到店自取 (復興店)</option>
+                  <option value="宅配快遞">宅配快遞</option>
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              {/* 🌟 核心新增：選擇「宅配快遞」時動態展開地址輸入框 */}
+              {pickupType === '宅配快遞' && (
+                <div className="animate-fadeIn">
+                  <label className="block text-xs font-medium text-amber-900 mb-1">
+                    🚚 宅配收件地址 *
+                  </label>
+                  <input
+                    type="text"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    placeholder="請輸入完整的縣市、區域與街道門牌"
+                    className="w-full p-2 border border-amber-400 rounded-lg text-xs sm:text-sm bg-amber-50/50 focus:bg-white focus:outline-hidden"
+                    required
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-stone-600 mb-1">預約取貨日 *</label>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    {pickupType === '宅配快遞' ? '預計寄送日 *' : '預約取貨日 *'}
+                  </label>
                   <input
                     type="date"
                     min={minDate}
@@ -489,7 +532,6 @@ export default function HomePage() {
                     }`}
                     required
                   />
-                  {/* 🌟 靜態即時提示：選到週日週一時下方顯示警示紅字 */}
                   {pickupDate && isClosedDay(pickupDate) && (
                     <p className="text-[10px] text-rose-600 font-bold mt-1">
                       ⚠️ 週日與週一為公休日，請改選其他日期
@@ -498,7 +540,9 @@ export default function HomePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-stone-600 mb-1">取貨時間 *</label>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">
+                    {pickupType === '宅配快遞' ? '希望送達時間 *' : '取貨時間 *'}
+                  </label>
                   <select
                     value={pickupTime}
                     onChange={(e) => setPickupTime(e.target.value)}
