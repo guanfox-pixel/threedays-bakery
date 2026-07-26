@@ -36,12 +36,37 @@ export default function HomePage() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 計算「後天」的最小可選日期字串 (YYYY-MM-DD)
+  // 計算「最早可預約日期」字串 (YYYY-MM-DD)
   const [minDate, setMinDate] = useState('');
+
+  // 🌟 時區安全的日期字串轉 Date 物件函式，避免時區偏移問題
+  const parseLocalDate = (dateStr: string): Date | null => {
+    if (!dateStr) return null;
+    const parts = dateStr.split('-');
+    if (parts.length !== 3) return null;
+    const year = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10) - 1;
+    const day = parseInt(parts[2], 10);
+    return new Date(year, month, day);
+  };
+
+  // 🌟 判斷是否為公休日（週日：0，週一：1）
+  const isClosedDay = (dateStr: string): boolean => {
+    const d = parseLocalDate(dateStr);
+    if (!d) return false;
+    const day = d.getDay();
+    return day === 0 || day === 1;
+  };
 
   useEffect(() => {
     const today = new Date();
-    today.setDate(today.getDate() + 2); // 至少提前 2 天
+    today.setDate(today.getDate() + 2); // 至少提前 2 天預訂
+
+    // 如果提前兩天的日期剛好是週日 (0) 或週一 (1)，順延至週二
+    while (today.getDay() === 0 || today.getDay() === 1) {
+      today.setDate(today.getDate() + 1);
+    }
+
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
@@ -103,7 +128,7 @@ export default function HomePage() {
 
   const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // 商品分類與類別內排序邏輯 (禮盒置後，其餘按數字排序)
+  // 商品分類與類別內排序邏輯 (禮盒置後，其餘按內含數量與數字排序)
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
     if (!acc[cat]) {
@@ -154,19 +179,9 @@ export default function HomePage() {
     return 0;
   });
 
-  // 🌟 新增：攔截日期選擇事件，阻擋週日與週一
+  // 🌟 修改：平滑更新日期 State，不在此彈出 alert 避免手機跳出無限迴圈
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedDate = e.target.value;
-    if (selectedDate) {
-      const dateObj = new Date(selectedDate);
-      const day = dateObj.getDay(); // 0 是週日，1 是週一
-      if (day === 0 || day === 1) {
-        alert('⚠️ 週日與週一為公休日，請選擇其他營業日期！');
-        setPickupDate(''); // 清空無效選擇
-        return;
-      }
-    }
-    setPickupDate(selectedDate);
+    setPickupDate(e.target.value);
   };
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -182,11 +197,9 @@ export default function HomePage() {
       return;
     }
 
-    // 🌟 表單送出前的雙重防呆：阻擋週日與週一
-    const selectedDateObj = new Date(pickupDate);
-    const dayOfWeek = selectedDateObj.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 1) {
-      alert('⚠️ 週日與週一為公休日，無法預約取貨，請選擇其他日期！');
+    // 🌟 表單送出時進行驗證：阻擋週日與週一
+    if (isClosedDay(pickupDate)) {
+      alert('⚠️ 週日與週一為公休日，無法安排取貨，請選擇其他日期！');
       return;
     }
 
@@ -372,7 +385,6 @@ export default function HomePage() {
               <span className="mr-1.5">📌</span> 預訂注意事項
             </h3>
 
-            {/* 🌟 新增與修改：根據您的需求重構的注意事項排版 */}
             <div className="space-y-3 text-xs text-stone-700 leading-relaxed">
               <div className="font-bold text-rose-800 bg-rose-50 p-2 rounded-lg border border-rose-200 text-center space-y-0.5">
                 <p>《不接受當日預訂》</p>
@@ -467,15 +479,22 @@ export default function HomePage() {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-medium text-stone-600 mb-1">預約取貨日 *</label>
-                  {/* 🌟 修改點：加入了 onChange={(e) => handleDateChange(e)} 來攔截特定星期 */}
                   <input
                     type="date"
                     min={minDate}
                     value={pickupDate}
                     onChange={handleDateChange}
-                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
+                    className={`w-full p-2 border rounded-lg text-xs sm:text-sm bg-white ${
+                      pickupDate && isClosedDay(pickupDate) ? 'border-rose-500 bg-rose-50' : 'border-stone-300'
+                    }`}
                     required
                   />
+                  {/* 🌟 靜態即時提示：選到週日週一時下方顯示警示紅字 */}
+                  {pickupDate && isClosedDay(pickupDate) && (
+                    <p className="text-[10px] text-rose-600 font-bold mt-1">
+                      ⚠️ 週日與週一為公休日，請改選其他日期
+                    </p>
+                  )}
                 </div>
 
                 <div>
