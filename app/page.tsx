@@ -17,6 +17,19 @@ interface CartItem extends Product {
   quantity: number;
 }
 
+interface LookedUpOrder {
+  id: number;
+  created_at: string;
+  customer_name: string;
+  customer_phone: string;
+  pickup_type: string;
+  pickup_date: string;
+  total_amount: number;
+  items: any[];
+  note: string;
+  status: string;
+}
+
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [pinnedCategories, setPinnedCategories] = useState<string[]>([]);
@@ -37,10 +50,15 @@ export default function HomePage() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // 🌟 新增：訂單電話查詢 Modal State
+  const [showLookupModal, setShowLookupModal] = useState(false);
+  const [lookupPhone, setLookupPhone] = useState('');
+  const [lookupResults, setLookupResults] = useState<LookedUpOrder[] | null>(null);
+  const [lookupLoading, setLookupLoading] = useState(false);
+
   // 計算「最早可預約日期」字串 (YYYY-MM-DD)
   const [minDate, setMinDate] = useState('');
 
-  // 時區安全的日期字串轉 Date 物件函式
   const parseLocalDate = (dateStr: string): Date | null => {
     if (!dateStr) return null;
     const parts = dateStr.split('-');
@@ -51,7 +69,6 @@ export default function HomePage() {
     return new Date(year, month, day);
   };
 
-  // 判斷是否為公休日（週日：0，週一：1）
   const isClosedDay = (dateStr: string): boolean => {
     const d = parseLocalDate(dateStr);
     if (!d) return false;
@@ -61,7 +78,7 @@ export default function HomePage() {
 
   useEffect(() => {
     const today = new Date();
-    today.setDate(today.getDate() + 2); // 至少提前 2 天預訂
+    today.setDate(today.getDate() + 2);
 
     while (today.getDay() === 0 || today.getDay() === 1) {
       today.setDate(today.getDate() + 1);
@@ -109,6 +126,35 @@ export default function HomePage() {
     fetchProducts();
   }, []);
 
+  // 🌟 電話查詢訂單邏輯
+  const handleLookupOrders = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!lookupPhone.trim()) {
+      alert('請輸入電話號碼！');
+      return;
+    }
+
+    setLookupLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('customer_phone', lookupPhone.trim())
+        .or('is_deleted.is.null,is_deleted.eq.false')
+        .order('id', { ascending: false });
+
+      if (error) {
+        alert(`查詢失敗：${error.message}`);
+      } else {
+        setLookupResults(data || []);
+      }
+    } catch (err: any) {
+      alert(`查詢發生例外：${err.message}`);
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
   const updateCartQuantity = (productId: number, delta: number) => {
     setCart((prev) => {
       const currentQty = prev[productId] || 0;
@@ -126,10 +172,8 @@ export default function HomePage() {
     .filter((p) => cart[p.id] > 0)
     .map((p) => ({ ...p, quantity: cart[p.id] }));
 
-  // 商品原價總額（不含運費）
   const productSubtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
-  // 自動計算宅配運費
   const calculateDeliveryFee = (): number => {
     if (pickupType !== '宅配快遞' || cartItems.length === 0) return 0;
 
@@ -144,28 +188,18 @@ export default function HomePage() {
       }
     });
 
-    // 1. 月餅禮盒宅配運費
     let mooncakeFee = 0;
     if (mooncakeBoxCount > 0) {
-      if (mooncakeBoxCount >= 6) {
-        mooncakeFee = 0; // 6盒以上免運
-      } else if (mooncakeBoxCount >= 3) {
-        mooncakeFee = 205; // 3~5盒 205元
-      } else {
-        mooncakeFee = 125; // 2盒以下 125元
-      }
+      if (mooncakeBoxCount >= 6) mooncakeFee = 0;
+      else if (mooncakeBoxCount >= 3) mooncakeFee = 205;
+      else mooncakeFee = 125;
     }
 
-    // 2. 麵包冷凍宅配運費
     let breadFee = 0;
     if (breadAmount > 0) {
-      if (breadAmount > 1000) {
-        breadFee = 290; // 1001~2000元 290元
-      } else if (breadAmount > 500) {
-        breadFee = 220; // 501~1000元 220元
-      } else {
-        breadFee = 160; // 0~500元 160元
-      }
+      if (breadAmount > 1000) breadFee = 290;
+      else if (breadAmount > 500) breadFee = 220;
+      else breadFee = 160;
     }
 
     return mooncakeFee + breadFee;
@@ -174,7 +208,6 @@ export default function HomePage() {
   const deliveryFee = calculateDeliveryFee();
   const totalPrice = productSubtotal + deliveryFee;
 
-  // 商品分類與排序
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
     if (!acc[cat]) {
@@ -326,7 +359,20 @@ export default function HomePage() {
 
   return (
     <main className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-stone-50 overflow-x-hidden">
-      <header className="-mx-3 -mt-3 sm:mx-auto sm:mt-0 max-w-5xl text-center mb-6 md:mb-10 flex flex-col items-center">
+      <header className="-mx-3 -mt-3 sm:mx-auto sm:mt-0 max-w-5xl text-center mb-6 md:mb-10 flex flex-col items-center relative">
+        {/* 🌟 頂部電話查詢按鈕 */}
+        <div className="w-full flex justify-end mb-2 px-3">
+          <button
+            onClick={() => {
+              setShowLookupModal(true);
+              setLookupResults(null);
+            }}
+            className="bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm flex items-center space-x-1.5 transition"
+          >
+            <span>🔍 查詢預約訂單</span>
+          </button>
+        </div>
+
         <div className="w-full sm:max-w-md md:max-w-lg">
           <img
             src="/logo.png"
@@ -461,7 +507,7 @@ export default function HomePage() {
                 <p className="pl-3 text-stone-600 font-medium">（12:00–13:00 品項最齊全）</p>
               </div>
 
-              {/* 🌟 核心新增：宅配運費說明備註區塊 */}
+              {/* 宅配運費說明備註 */}
               <div className="bg-white/80 p-3 rounded-xl border border-amber-300/80 space-y-2">
                 <p className="font-bold text-amber-950 flex items-center">
                   🚚 宅配運費說明：
@@ -508,7 +554,7 @@ export default function HomePage() {
               className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm transition transform active:scale-95"
             >
               <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.121.303.079.778.039 1.085l-.171 1.027c-.053.303-.242 1.186.521.648.763-.537 4.113-2.422 5.613-4.144 1.258-1.42 1.885-2.88 1.885-4.316zm-16.892 2.372h-2.001v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h2.515c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.016 0h-1.028v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h1.542c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.83 0h-1.398l-1.528-2.222v2.222c0 .284-.23.514-.514.514s-.23-.514-.514-.514v-4.288c0-.284.23-.514.514-.514h1.398l1.528 2.222v-2.222c0-.284.23-.514.514-.514s.514.23.514.514v4.288c0 .284-.23-.514-.514.514zm4.116-2.746h-1.543v.715h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-1.543v.988h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-2.057c-.284 0-.514-.23-.514-.514v-4.288c0-.284.23-.514.514-.514h2.057c.284 0 .514.23.514.514s-.23.514-.514.514z" />
+                <path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.121.303.079.778.039 1.085l-.171 1.027c-.053.303-.242 1.186.521.648.763-.537 4.113-2.422 5.613-4.144 1.258-1.42 1.885-2.88 1.885-4.316zm-16.892 2.372h-2.001v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h2.515c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.016 0h-1.028v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h1.542c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.83 0h-1.398l-1.528-2.222v2.222c0 .284-.23-.514-.514-.514s-.23-.514-.514-.514v-4.288c0-.284.23-.514.514-.514h1.398l1.528 2.222v-2.222c0-.284-.23-.514.514-.514s.514.23.514.514v4.288c0 .284-.23-.514-.514.514zm4.116-2.746h-1.543v.715h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-1.543v.988h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-2.057c-.284 0-.514-.23-.514-.514v-4.288c0-.284.23-.514.514-.514h2.057c.284 0 .514.23.514.514s-.23.514-.514.514z" />
               </svg>
               <span>點擊加入 LINE 官方客服對談</span>
             </a>
@@ -679,6 +725,120 @@ export default function HomePage() {
           </div>
         </section>
       </div>
+
+      {/* 🌟 核心 Modal：電話查詢預約訂單彈窗 */}
+      {showLookupModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-stone-200">
+            <div className="flex justify-between items-center border-b pb-3 mb-4">
+              <h3 className="font-bold text-amber-950 text-base flex items-center">
+                <span>🔍 查詢您的預約訂單</span>
+              </h3>
+              <button
+                onClick={() => setShowLookupModal(false)}
+                className="text-stone-400 hover:text-stone-600 font-bold text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleLookupOrders} className="flex gap-2 mb-4">
+              <input
+                type="tel"
+                value={lookupPhone}
+                onChange={(e) => setLookupPhone(e.target.value)}
+                placeholder="請輸入訂購時留的電話號碼"
+                className="flex-1 p-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm bg-white focus:outline-hidden focus:border-amber-700"
+                required
+              />
+              <button
+                type="submit"
+                disabled={lookupLoading}
+                className="bg-amber-800 hover:bg-amber-900 text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition disabled:bg-stone-300"
+              >
+                {lookupLoading ? '查詢中...' : '查詢'}
+              </button>
+            </form>
+
+            {/* 查詢結果列表 */}
+            {lookupResults !== null && (
+              <div className="space-y-3 pt-2">
+                {lookupResults.length === 0 ? (
+                  <p className="text-center text-stone-500 text-xs py-6 bg-stone-50 rounded-xl border border-stone-200">
+                    查無電話相符的預約紀錄，請確認電話是否正確！
+                  </p>
+                ) : (
+                  lookupResults.map((order) => {
+                    const isShipped = order.status === 'completed' || order.status === '已出貨';
+                    const isDelivery = order.pickup_type === '宅配快遞';
+
+                    return (
+                      <div
+                        key={order.id}
+                        className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-2 text-xs"
+                      >
+                        <div className="flex justify-between items-start border-b border-stone-200 pb-2">
+                          <div>
+                            <span className="font-bold text-amber-950 text-sm">
+                              #{order.id} {order.customer_name}
+                            </span>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  isDelivery
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {isDelivery ? '🚚 宅配快遞' : '🏪 到店自取'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span
+                            className={`text-xs px-2.5 py-1 rounded-lg font-bold ${
+                              isShipped
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {isShipped ? '✅ 已完成 / 出貨' : '⏳ 處理中'}
+                          </span>
+                        </div>
+
+                        <p className="text-stone-700">
+                          <strong>⏰ 預約時間：</strong>
+                          <span className="font-bold text-amber-900">{order.pickup_date}</span>
+                        </p>
+
+                        {order.note && (
+                          <div className="bg-white p-2 rounded-lg border border-stone-200 text-stone-600 whitespace-pre-line">
+                            <strong>備註 / 地址：</strong> {order.note}
+                          </div>
+                        )}
+
+                        <div className="pt-1">
+                          <p className="font-bold text-stone-800 mb-1">🛒 訂購內容：</p>
+                          <ul className="space-y-0.5 text-stone-600 pl-2">
+                            {order.items?.map((item: any, idx: number) => (
+                              <li key={idx}>
+                                • {item.name} x {item.quantity} (${item.price * item.quantity}元)
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="text-right font-bold text-amber-950 text-sm mt-2 border-t pt-1">
+                            總計：${order.total_amount} 元
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 全螢幕圖片放大燈箱 Modal */}
       {previewImage && (
