@@ -26,10 +26,24 @@ export default function HomePage() {
   const [cart, setCart] = useState<{ [key: number]: number }>({});
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  const [pickupType, setPickupType] = useState('到店自取');
+  const [pickupType, setPickupType] = useState('到店自取 (復興店)');
   const [pickupDate, setPickupDate] = useState('');
+  const [pickupTime, setPickupTime] = useState('14:00'); // 預設 14:00
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // 🌟 計算「後天」的最小可選日期 (minDate)
+  const [minDate, setMinDate] = useState('');
+
+  useEffect(() => {
+    const today = new Date();
+    // 增加 2 天取得後天日期
+    today.setDate(today.getDate() + 2);
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setMinDate(`${yyyy}-${mm}-${dd}`);
+  }, []);
 
   // 1. 抓取已上架商品清單 (is_active = true)
   const fetchProducts = async () => {
@@ -102,7 +116,15 @@ export default function HomePage() {
       return;
     }
 
+    // 再次檢查預約日期是否至少為後天
+    if (minDate && pickupDate < minDate) {
+      alert('預約取貨日需提前至少 2 天預訂，請選擇後天或之後的日期！');
+      return;
+    }
+
     setSubmitting(true);
+
+    const fullPickupDateTime = `${pickupDate} ${pickupTime}`;
 
     try {
       const { error } = await supabase.from('orders').insert([
@@ -110,7 +132,7 @@ export default function HomePage() {
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
           pickup_type: pickupType,
-          pickup_date: pickupDate,
+          pickup_date: fullPickupDateTime,
           total_amount: totalPrice,
           items: cartItems.map((item) => ({
             id: item.id,
@@ -126,7 +148,7 @@ export default function HomePage() {
       if (error) {
         alert(`❌ 預約失敗：${error.message}`);
       } else {
-        // 發送 Telegram 店家推播
+        // 發送 Telegram 店家推播 (包含取貨時間)
         fetch('/api/notify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -134,7 +156,7 @@ export default function HomePage() {
             customerName: customerName.trim(),
             customerPhone: customerPhone.trim(),
             pickupType,
-            pickupDate,
+            pickupDate: fullPickupDateTime,
             items: cartItems,
             totalAmount: totalPrice,
             note: note.trim(),
@@ -146,6 +168,7 @@ export default function HomePage() {
         setCustomerName('');
         setCustomerPhone('');
         setPickupDate('');
+        setPickupTime('14:00');
         setNote('');
         fetchProducts();
       }
@@ -250,7 +273,7 @@ export default function HomePage() {
 
         {/* 右側：預訂注意事項 + 購物車預約結帳單 */}
         <section className="space-y-6 h-fit sticky top-6">
-          {/* 🌟 核心新增：預訂注意事項卡片 */}
+          {/* 預訂注意事項卡片 */}
           <div className="bg-amber-50/80 p-5 rounded-2xl border border-amber-200/80 shadow-sm text-stone-800">
             <h3 className="font-bold text-amber-950 text-base mb-3 flex items-center border-b border-amber-200/60 pb-2">
               <span className="mr-1.5">📌</span> 預訂注意事項
@@ -337,27 +360,51 @@ export default function HomePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-stone-600 mb-1">取貨方式</label>
-                  <select
-                    value={pickupType}
-                    onChange={(e) => setPickupType(e.target.value)}
-                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
-                  >
-                    <option value="到店自取 (復興店)">到店自取 (復興店)</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-600 mb-1">取貨方式</label>
+                <select
+                  value={pickupType}
+                  onChange={(e) => setPickupType(e.target.value)}
+                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-stone-50"
+                >
+                  <option value="到店自取 (復興店)">到店自取 (復興店)</option>
+                </select>
+              </div>
 
+              {/* 🌟 核心修改：預約日期 (限制後天起) 與 取貨時間 (14:00 - 00:00) */}
+              <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-medium text-stone-600 mb-1">預約取貨日 *</label>
                   <input
                     type="date"
+                    min={minDate}
                     value={pickupDate}
                     onChange={(e) => setPickupDate(e.target.value)}
                     className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm"
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">取貨時間 *</label>
+                  <select
+                    value={pickupTime}
+                    onChange={(e) => setPickupTime(e.target.value)}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
+                    required
+                  >
+                    <option value="14:00">14:00</option>
+                    <option value="15:00">15:00</option>
+                    <option value="16:00">16:00</option>
+                    <option value="17:00">17:00</option>
+                    <option value="18:00">18:00</option>
+                    <option value="19:00">19:00</option>
+                    <option value="20:00">20:00</option>
+                    <option value="21:00">21:00</option>
+                    <option value="22:00">22:00</option>
+                    <option value="23:00">23:00</option>
+                    <option value="00:00">00:00</option>
+                  </select>
                 </div>
               </div>
 
