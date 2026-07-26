@@ -31,7 +31,7 @@ export default function HomePage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [pickupType, setPickupType] = useState('到店自取 (復興店)');
-  const [deliveryAddress, setDeliveryAddress] = useState(''); // 🌟 新增：宅配地址 State
+  const [deliveryAddress, setDeliveryAddress] = useState('');
   const [pickupDate, setPickupDate] = useState('');
   const [pickupTime, setPickupTime] = useState('14:00');
   const [note, setNote] = useState('');
@@ -126,7 +126,53 @@ export default function HomePage() {
     .filter((p) => cart[p.id] > 0)
     .map((p) => ({ ...p, quantity: cart[p.id] }));
 
-  const totalPrice = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // 商品原價總額（不含運費）
+  const productSubtotal = cartItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  // 🌟 核心計算：自動計算宅配運費
+  const calculateDeliveryFee = (): number => {
+    if (pickupType !== '宅配快遞' || cartItems.length === 0) return 0;
+
+    let mooncakeBoxCount = 0;
+    let breadAmount = 0;
+
+    cartItems.forEach((item) => {
+      if (item.name.includes('禮盒') || item.category.includes('禮盒')) {
+        mooncakeBoxCount += item.quantity;
+      } else {
+        breadAmount += item.price * item.quantity;
+      }
+    });
+
+    // 1. 月餅禮盒宅配運費
+    let mooncakeFee = 0;
+    if (mooncakeBoxCount > 0) {
+      if (mooncakeBoxCount >= 6) {
+        mooncakeFee = 0; // 6盒以上免運
+      } else if (mooncakeBoxCount >= 3) {
+        mooncakeFee = 205; // 3~5盒 205元
+      } else {
+        mooncakeFee = 125; // 2盒以下 125元
+      }
+    }
+
+    // 2. 麵包冷凍宅配運費
+    let breadFee = 0;
+    if (breadAmount > 0) {
+      if (breadAmount > 1000) {
+        breadFee = 290; // 1001~2000元 290元
+      } else if (breadAmount > 500) {
+        breadFee = 220; // 501~1000元 220元
+      } else {
+        breadFee = 160; // 0~500元 160元
+      }
+    }
+
+    return mooncakeFee + breadFee;
+  };
+
+  const deliveryFee = calculateDeliveryFee();
+  const totalPrice = productSubtotal + deliveryFee;
 
   // 商品分類與類別內排序邏輯
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
@@ -191,6 +237,12 @@ export default function HomePage() {
       return;
     }
 
+    // 🌟 核心防呆：未滿 200 元限制送出訂單
+    if (productSubtotal < 200) {
+      alert('⚠️ 預訂金額未滿 200 元，無法送出預約！\n請直接至現場選購（12:00–13:00品項最齊全），或增加訂購數量。');
+      return;
+    }
+
     if (!customerName.trim() || !customerPhone.trim() || !pickupDate) {
       alert('請完整填寫姓名、電話與預約取貨日期！');
       return;
@@ -216,7 +268,6 @@ export default function HomePage() {
     const selectedTime = pickupTime || '14:00';
     const fullPickupDateTime = `${pickupDate.trim()} ${selectedTime.trim()}`;
 
-    // 🌟 組合備註與地址資訊
     const finalNote = pickupType === '宅配快遞'
       ? `【宅配地址】：${deliveryAddress.trim()}${note.trim() ? `\n【備註】：${note.trim()}` : ''}`
       : note.trim();
@@ -252,6 +303,8 @@ export default function HomePage() {
             pickupType,
             pickupDate: fullPickupDateTime,
             items: cartItems,
+            productSubtotal,
+            deliveryFee,
             totalAmount: totalPrice,
             note: finalNote,
           }),
@@ -456,10 +509,30 @@ export default function HomePage() {
                     </span>
                   </div>
                 ))}
-                <div className="pt-3 flex justify-between font-bold text-sm sm:text-base text-amber-950">
-                  <span>總計金額：</span>
-                  <span>${totalPrice} 元</span>
+
+                <div className="pt-3 space-y-1">
+                  <div className="flex justify-between text-xs text-stone-600">
+                    <span>商品小計：</span>
+                    <span>${productSubtotal} 元</span>
+                  </div>
+                  {pickupType === '宅配快遞' && (
+                    <div className="flex justify-between text-xs text-amber-900 font-medium">
+                      <span>🚚 宅配運費：</span>
+                      <span>+${deliveryFee} 元</span>
+                    </div>
+                  )}
+                  <div className="pt-2 flex justify-between font-bold text-sm sm:text-base text-amber-950 border-t border-stone-200">
+                    <span>總計金額：</span>
+                    <span>${totalPrice} 元</span>
+                  </div>
                 </div>
+              </div>
+            )}
+
+            {/* 🌟 未滿 200 元提示標語 */}
+            {productSubtotal > 0 && productSubtotal < 200 && (
+              <div className="bg-rose-50 text-rose-700 text-xs p-2.5 rounded-lg border border-rose-200 mb-3 font-medium">
+                ⚠️ 預訂金額未滿 200 元（目前 ${productSubtotal} 元），無法線上預約，請至現場購買或加購商品。
               </div>
             )}
 
@@ -500,7 +573,6 @@ export default function HomePage() {
                 </select>
               </div>
 
-              {/* 🌟 核心新增：選擇「宅配快遞」時動態展開地址輸入框 */}
               {pickupType === '宅配快遞' && (
                 <div className="animate-fadeIn">
                   <label className="block text-xs font-medium text-amber-900 mb-1">
@@ -577,7 +649,7 @@ export default function HomePage() {
 
               <button
                 type="submit"
-                disabled={submitting || cartItems.length === 0}
+                disabled={submitting || cartItems.length === 0 || productSubtotal < 200}
                 className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold text-xs sm:text-sm hover:bg-amber-900 transition disabled:bg-stone-300 mt-2 shadow-sm"
               >
                 {submitting ? '送出預約中...' : '送出麵包預約單'}
