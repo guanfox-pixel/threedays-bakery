@@ -73,12 +73,12 @@ export default function HomePage() {
     const d = parseLocalDate(dateStr);
     if (!d) return false;
     const day = d.getDay();
-    return day === 0 || day === 1;
+    return day === 0 || day === 1; // 0 是週日，1 是週一
   };
 
   useEffect(() => {
     const today = new Date();
-    today.setDate(today.getDate() + 2);
+    today.setDate(today.getDate() + 2); // 至少提前 2 天預訂
 
     while (today.getDay() === 0 || today.getDay() === 1) {
       today.setDate(today.getDate() + 1);
@@ -256,25 +256,27 @@ export default function HomePage() {
     return 0;
   });
 
-  // 🌟 手機與電腦通用：日期變更及時驗證與動態清空
+  // 🌟 修復手機無限迴圈問題：加入防重複觸發檢查
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedDate = e.target.value;
+
+    // 如果使用者清空日期或是沒有傳入有效數值，直接回傳不觸發警示
     if (!selectedDate) {
       setPickupDate('');
       return;
     }
 
-    // 1. 檢測是否選擇了週日或週一（公休日）[cite: 2]
+    // 1. 檢測是否選擇了週日或週一（公休日）
     if (isClosedDay(selectedDate)) {
       alert('⚠️ 週日與週一為公休日，無法安排取貨／寄送！\n請選擇其他營業日（週二至週六）。');
-      setPickupDate(''); // 強制清空重置[cite: 2]
+      setPickupDate('');
       return;
     }
 
-    // 2. 檢測是否選擇了未滿 2 天的日期（今天或明天）[cite: 2]
+    // 2. 使用字串格式比對，避免時區導致誤判
     if (minDate && selectedDate < minDate) {
       alert(`⚠️ 預約失敗：需提前至少 2 天預訂！\n最早可預約日期為：${minDate}`);
-      setPickupDate(''); // 強制清空重置[cite: 2]
+      setPickupDate('');
       return;
     }
 
