@@ -50,6 +50,9 @@ export default function HomePage() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // 🌟 新增：日期選擇行內錯誤訊息（避免使用 alert 導致手機無限迴圈）
+  const [dateError, setDateError] = useState<string>('');
+
   // 訂單電話查詢 Modal State
   const [showLookupModal, setShowLookupModal] = useState(false);
   const [lookupPhone, setLookupPhone] = useState('');
@@ -73,21 +76,21 @@ export default function HomePage() {
     const d = parseLocalDate(dateStr);
     if (!d) return false;
     const day = d.getDay();
-    return day === 0 || day === 1; // 0 是週日，1 是週一
+    return day === 0 || day === 1; // 0 是週日，1 是週一[cite: 2]
   };
 
   useEffect(() => {
     const today = new Date();
-    today.setDate(today.getDate() + 2); // 至少提前 2 天預訂
+    today.setDate(today.getDate() + 2); // 至少提前 2 天預訂[cite: 2]
 
     while (today.getDay() === 0 || today.getDay() === 1) {
-      today.setDate(today.getDate() + 1);
+      today.setDate(today.getDate() + 1); //[cite: 2]
     }
 
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
-    setMinDate(`${yyyy}-${mm}-${dd}`);
+    setMinDate(`${yyyy}-${mm}-${dd}`); //[cite: 2]
   }, []);
 
   const fetchProducts = async () => {
@@ -126,7 +129,7 @@ export default function HomePage() {
     fetchProducts();
   }, []);
 
-  // 電話查詢訂單邏輯
+  // 電話查詢訂單邏輯[cite: 2]
   const handleLookupOrders = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lookupPhone.trim()) {
@@ -256,26 +259,26 @@ export default function HomePage() {
     return 0;
   });
 
-  // 🌟 修復手機無限迴圈問題：加入防重複觸發檢查
+  // 🌟 安全日期切換邏輯：取消 alert 彈窗，全面改用行內錯誤提示，徹底消除手機無限迴圈！
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedDate = e.target.value;
+    setDateError('');
 
-    // 如果使用者清空日期或是沒有傳入有效數值，直接回傳不觸發警示
     if (!selectedDate) {
       setPickupDate('');
       return;
     }
 
-    // 1. 檢測是否選擇了週日或週一（公休日）
+    // 1. 檢測公休日（週日、週一）
     if (isClosedDay(selectedDate)) {
-      alert('⚠️ 週日與週一為公休日，無法安排取貨／寄送！\n請選擇其他營業日（週二至週六）。');
+      setDateError('⚠️ 週日與週一為公休日，無法安排取貨／寄送，請改選其他日期！');
       setPickupDate('');
       return;
     }
 
-    // 2. 使用字串格式比對，避免時區導致誤判
+    // 2. 檢測是否小於最早可預約日期（後天）
     if (minDate && selectedDate < minDate) {
-      alert(`⚠️ 預約失敗：需提前至少 2 天預訂！\n最早可預約日期為：${minDate}`);
+      setDateError(`⚠️ 需提前至少 2 天預訂，最早可預約日期為：${minDate}`);
       setPickupDate('');
       return;
     }
@@ -297,7 +300,7 @@ export default function HomePage() {
     }
 
     if (!customerName.trim() || !customerPhone.trim() || !pickupDate) {
-      alert('請完整填寫姓名、電話與預約取貨日期！');
+      alert('請完整填寫姓名、電話與有效的預約取貨日期！');
       return;
     }
 
@@ -371,6 +374,7 @@ export default function HomePage() {
         setPickupDate('');
         setPickupTime('14:00');
         setNote('');
+        setDateError('');
         fetchProducts();
       }
     } catch (err: any) {
@@ -690,13 +694,14 @@ export default function HomePage() {
                     value={pickupDate}
                     onChange={handleDateChange}
                     className={`w-full p-2 border rounded-lg text-xs sm:text-sm bg-white ${
-                      pickupDate && isClosedDay(pickupDate) ? 'border-rose-500 bg-rose-50' : 'border-stone-300'
+                      dateError ? 'border-rose-500 bg-rose-50' : 'border-stone-300'
                     }`}
                     required
                   />
-                  {pickupDate && isClosedDay(pickupDate) && (
-                    <p className="text-[10px] text-rose-600 font-bold mt-1">
-                      ⚠️ 週日與週一為公休日，請改選其他日期
+                  {/* 🌟 行內錯誤提示：直接顯現在輸入框下方，不會彈窗、不會觸發迴圈 */}
+                  {dateError && (
+                    <p className="text-[11px] text-rose-600 font-bold mt-1 bg-rose-50 p-1.5 rounded border border-rose-200">
+                      {dateError}
                     </p>
                   )}
                 </div>
@@ -739,7 +744,7 @@ export default function HomePage() {
 
               <button
                 type="submit"
-                disabled={submitting || cartItems.length === 0 || productSubtotal < 200}
+                disabled={submitting || cartItems.length === 0 || productSubtotal < 200 || !pickupDate}
                 className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold text-xs sm:text-sm hover:bg-amber-900 transition disabled:bg-stone-300 mt-2 shadow-sm"
               >
                 {submitting ? '送出預約中...' : '送出麵包預約單'}
@@ -749,7 +754,7 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* 電話查詢預約訂單彈窗 Modal */}
+      {/* 電話查詢預約訂單彈窗 Modal[cite: 2] */}
       {showLookupModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-stone-200">
@@ -783,7 +788,7 @@ export default function HomePage() {
               </button>
             </form>
 
-            {/* 查詢結果列表 */}
+            {/* 查詢結果列表[cite: 2] */}
             {lookupResults !== null && (
               <div className="space-y-3 pt-2">
                 {lookupResults.length === 0 ? (
