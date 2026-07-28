@@ -50,7 +50,7 @@ export default function HomePage() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 🌟 新增：訂單電話查詢 Modal State
+  // 訂單電話查詢 Modal State
   const [showLookupModal, setShowLookupModal] = useState(false);
   const [lookupPhone, setLookupPhone] = useState('');
   const [lookupResults, setLookupResults] = useState<LookedUpOrder[] | null>(null);
@@ -126,7 +126,7 @@ export default function HomePage() {
     fetchProducts();
   }, []);
 
-  // 🌟 電話查詢訂單邏輯
+  // 電話查詢訂單邏輯
   const handleLookupOrders = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lookupPhone.trim()) {
@@ -256,8 +256,29 @@ export default function HomePage() {
     return 0;
   });
 
+  // 🌟 手機與電腦通用：日期變更及時驗證與動態清空
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPickupDate(e.target.value);
+    const selectedDate = e.target.value;
+    if (!selectedDate) {
+      setPickupDate('');
+      return;
+    }
+
+    // 1. 檢測是否選擇了週日或週一（公休日）[cite: 2]
+    if (isClosedDay(selectedDate)) {
+      alert('⚠️ 週日與週一為公休日，無法安排取貨／寄送！\n請選擇其他營業日（週二至週六）。');
+      setPickupDate(''); // 強制清空重置[cite: 2]
+      return;
+    }
+
+    // 2. 檢測是否選擇了未滿 2 天的日期（今天或明天）[cite: 2]
+    if (minDate && selectedDate < minDate) {
+      alert(`⚠️ 預約失敗：需提前至少 2 天預訂！\n最早可預約日期為：${minDate}`);
+      setPickupDate(''); // 強制清空重置[cite: 2]
+      return;
+    }
+
+    setPickupDate(selectedDate);
   };
 
   const handleSubmitOrder = async (e: React.FormEvent) => {
@@ -360,7 +381,7 @@ export default function HomePage() {
   return (
     <main className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-stone-50 overflow-x-hidden">
       <header className="-mx-3 -mt-3 sm:mx-auto sm:mt-0 max-w-5xl text-center mb-6 md:mb-10 flex flex-col items-center relative">
-        {/* 🌟 頂部電話查詢按鈕 */}
+        {/* 頂部電話查詢按鈕 */}
         <div className="w-full flex justify-end mb-2 px-3">
           <button
             onClick={() => {
@@ -554,7 +575,7 @@ export default function HomePage() {
               className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm transition transform active:scale-95"
             >
               <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.121.303.079.778.039 1.085l-.171 1.027c-.053.303-.242 1.186.521.648.763-.537 4.113-2.422 5.613-4.144 1.258-1.42 1.885-2.88 1.885-4.316zm-16.892 2.372h-2.001v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h2.515c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.016 0h-1.028v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h1.542c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.83 0h-1.398l-1.528-2.222v2.222c0 .284-.23-.514-.514-.514s-.23-.514-.514-.514v-4.288c0-.284.23-.514.514-.514h1.398l1.528 2.222v-2.222c0-.284-.23-.514.514-.514s.514.23.514.514v4.288c0 .284-.23-.514-.514.514zm4.116-2.746h-1.543v.715h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-1.543v.988h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-2.057c-.284 0-.514-.23-.514-.514v-4.288c0-.284.23-.514.514-.514h2.057c.284 0 .514.23.514.514s-.23.514-.514.514z" />
+                <path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.121.303.079.778.039 1.085l-.171 1.027c-.053.303-.242 1.186.521.648.763-.537 4.113-2.422 5.613-4.144 1.258-1.42 1.885-2.88 1.885-4.316zm-16.892 2.372h-2.001v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h2.515c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.016 0h-1.028v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h1.542c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.83 0h-1.398l-1.528-2.222v2.222c0 .284-.23-.514-.514-.514s-.23-.514-.514-.514v-4.288c0-.284.23-.514.514-.514h1.398l1.528 2.222v-2.222c0-.284.23-.514.514-.514s.514.23.514.514v4.288c0 .284-.23-.514-.514.514zm4.116-2.746h-1.543v.715h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-1.543v.988h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-2.057c-.284 0-.514-.23-.514-.514v-4.288c0-.284.23-.514.514-.514h2.057c.284 0 .514.23.514.514s-.23.514-.514.514z" />
               </svg>
               <span>點擊加入 LINE 官方客服對談</span>
             </a>
@@ -726,7 +747,7 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* 🌟 核心 Modal：電話查詢預約訂單彈窗 */}
+      {/* 電話查詢預約訂單彈窗 Modal */}
       {showLookupModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-stone-200">
