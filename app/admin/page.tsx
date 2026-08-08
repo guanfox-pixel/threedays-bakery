@@ -77,8 +77,21 @@ export default function AdminPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes, pinRes] = await Promise.all([
-        supabase.from('products').select('*').order('display_order', { ascending: true }).order('id', { ascending: false }),
+      // 🌟 安全查詢：若 display_order 不存在則自動降級使用原本排序
+      let prodRes = await supabase
+        .from('products')
+        .select('*')
+        .order('display_order', { ascending: true })
+        .order('id', { ascending: false });
+
+      if (prodRes.error && prodRes.error.message.includes('display_order')) {
+        prodRes = await supabase
+          .from('products')
+          .select('*')
+          .order('id', { ascending: false });
+      }
+
+      const [orderRes, pinRes] = await Promise.all([
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('category_settings').select('*'),
       ]);
@@ -106,7 +119,6 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 現有類別清單
   const existingCategories = Array.from(
     new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c) && c.trim() !== ''))
   );
@@ -115,7 +127,6 @@ export default function AdminPage() {
     new Set([...existingCategories, ...defaultCategories])
   );
 
-  // 切換類別置頂狀態
   const handleToggleCategoryPin = async (catName: string) => {
     const isCurrentlyPinned = pinnedCategories.includes(catName);
     const targetState = !isCurrentlyPinned;
@@ -141,7 +152,6 @@ export default function AdminPage() {
     }
   };
 
-  // 切換商品上下架狀態
   const handleToggleProductActive = async (productId: number, currentIsActive: boolean) => {
     const targetState = !currentIsActive;
     try {
@@ -166,7 +176,6 @@ export default function AdminPage() {
     }
   };
 
-  // 🌟 調整商品前後順序並同步更新 Supabase display_order
   const handleMoveProduct = async (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= products.length) return;
@@ -176,7 +185,6 @@ export default function AdminPage() {
     newProducts[index] = newProducts[targetIndex];
     newProducts[targetIndex] = temp;
 
-    // 為每項商品賦予 display_order
     const updatedProducts = newProducts.map((p, idx) => ({
       ...p,
       display_order: idx,
@@ -195,14 +203,14 @@ export default function AdminPage() {
 
       const { error } = await supabase.from('products').upsert(updates);
       if (error) {
-        console.error('更新順序失敗:', error.message);
+        alert(`❌ 順序更新失敗，請確認已在 Supabase SQL 執行新增 display_order 欄位：${error.message}`);
+        fetchData();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('更新順序例外:', err);
     }
   };
 
-  // 訂單狀態切換
   const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
       setOrders((prev) =>
@@ -224,7 +232,6 @@ export default function AdminPage() {
     }
   };
 
-  // 移至 / 還原垃圾桶
   const handleToggleTrash = async (orderId: number, targetIsDeleted: boolean) => {
     try {
       setOrders((prev) =>
@@ -248,7 +255,6 @@ export default function AdminPage() {
     }
   };
 
-  // 一鍵清空垃圾桶
   const handleClearAllTrash = async () => {
     const trashedOrders = orders.filter((o) => o.is_deleted);
     if (trashedOrders.length === 0) {
@@ -275,7 +281,6 @@ export default function AdminPage() {
     }
   };
 
-  // 圖片上傳
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -319,7 +324,6 @@ export default function AdminPage() {
     }
   };
 
-  // 新增商品
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !price) {
@@ -364,7 +368,6 @@ export default function AdminPage() {
     }
   };
 
-  // 更新商品
   const handleUpdateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;

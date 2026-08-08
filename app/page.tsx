@@ -37,10 +37,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
-  // 圖片放大燈箱 State
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  // 購物車與預約單 State
   const [cart, setCart] = useState<{ [key: number]: number }>({});
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -51,16 +49,13 @@ export default function HomePage() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 日期選擇行內錯誤訊息
   const [dateError, setDateError] = useState<string>('');
 
-  // 訂單電話查詢 Modal State
   const [showLookupModal, setShowLookupModal] = useState(false);
   const [lookupPhone, setLookupPhone] = useState('');
   const [lookupResults, setLookupResults] = useState<LookedUpOrder[] | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
 
-  // 計算「最早可預約日期」字串 (YYYY-MM-DD)
   const [minDate, setMinDate] = useState('');
 
   const parseLocalDate = (dateStr: string): Date | null => {
@@ -98,18 +93,26 @@ export default function HomePage() {
     setLoading(true);
     setErrorMsg('');
     try {
-      const [prodRes, pinRes] = await Promise.all([
-        supabase
+      // 🌟 安全查詢：相容欄位尚未建立的情況
+      let prodRes = await supabase
+        .from('products')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order', { ascending: true })
+        .order('id', { ascending: true });
+
+      if (prodRes.error && prodRes.error.message.includes('display_order')) {
+        prodRes = await supabase
           .from('products')
           .select('*')
           .eq('is_active', true)
-          .order('display_order', { ascending: true })
-          .order('id', { ascending: true }),
-        supabase
-          .from('category_settings')
-          .select('category_name')
-          .eq('is_pinned', true),
-      ]);
+          .order('id', { ascending: true });
+      }
+
+      const pinRes = await supabase
+        .from('category_settings')
+        .select('category_name')
+        .eq('is_pinned', true);
 
       if (prodRes.error) {
         setErrorMsg(`無法讀取商品：${prodRes.error.message}`);
@@ -221,7 +224,6 @@ export default function HomePage() {
     return acc;
   }, {});
 
-  // 🌟 核心調整：類別內部的商品依照 display_order 優先排序
   Object.keys(categorizedProducts).forEach((cat) => {
     categorizedProducts[cat].sort((a, b) => {
       const orderA = a.display_order ?? 999;
@@ -512,7 +514,6 @@ export default function HomePage() {
                 <p className="pl-3 text-stone-600 font-medium">（12:00–13:00 品項最齊全）</p>
               </div>
 
-              {/* 宅配運費說明備註 */}
               <div className="bg-white/80 p-3 rounded-xl border border-amber-300/80 space-y-2">
                 <p className="font-bold text-amber-950 flex items-center">
                   🚚 宅配運費說明：
@@ -765,7 +766,6 @@ export default function HomePage() {
               </button>
             </form>
 
-            {/* 查詢結果列表 */}
             {lookupResults !== null && (
               <div className="space-y-3 pt-2">
                 {lookupResults.length === 0 ? (
