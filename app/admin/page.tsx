@@ -11,6 +11,7 @@ interface Product {
   image_url: string;
   category: string;
   is_active: boolean;
+  display_order?: number;
 }
 
 interface Order {
@@ -165,7 +166,20 @@ export default function AdminPage() {
     }
   };
 
-  // 訂單狀態切換
+  // 🌟 核心功能 1：調整商品前後順序（上移 / 下移）
+  const handleMoveProduct = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= products.length) return;
+
+    const newProducts = [...products];
+    const temp = newProducts[index];
+    newProducts[index] = newProducts[targetIndex];
+    newProducts[targetIndex] = temp;
+
+    setProducts(newProducts);
+  };
+
+  // 🌟 核心功能 2：訂單狀態切換（將「已出貨」改為「已確認訂單」）
   const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
       setOrders((prev) =>
@@ -561,21 +575,44 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 已建立商品列表 */}
+            {/* 已建立商品列表 (🌟 新增前後順序調整按鈕) */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已建立商品清單</h2>
               {loading ? (
                 <p className="text-stone-400">載入商品清單中...</p>
               ) : (
                 <div className="divide-y divide-stone-200">
-                  {products.map((p) => (
+                  {products.map((p, index) => (
                     <div key={p.id} className="py-4 flex justify-between items-center">
                       <div className="flex items-center space-x-4">
+                        {/* 🌟 上下順序調整按鈕區塊 */}
+                        <div className="flex flex-col space-y-1">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveProduct(index, 'up')}
+                            disabled={index === 0}
+                            className="p-1 text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 rounded disabled:opacity-30 disabled:cursor-not-allowed font-bold"
+                            title="上移順序"
+                          >
+                            ⬆️
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveProduct(index, 'down')}
+                            disabled={index === products.length - 1}
+                            className="p-1 text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 rounded disabled:opacity-30 disabled:cursor-not-allowed font-bold"
+                            title="下移順序"
+                          >
+                            ⬇️
+                          </button>
+                        </div>
+
                         {p.image_url ? (
                           <img src={p.image_url} alt={p.name} className="w-14 h-14 object-cover rounded-lg" />
                         ) : (
                           <div className="w-14 h-14 bg-stone-100 rounded-lg flex items-center justify-center text-xs text-stone-400">無圖</div>
                         )}
+
                         <div>
                           <div className="flex items-center space-x-2">
                             <h4 className="font-bold text-stone-900">{p.name}</h4>
@@ -624,7 +661,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 頁籤 2：客戶預約單 (🌟 新增宅配與地址亮點標示) */}
+        {/* 頁籤 2：客戶預約單 (🌟 已出貨更名為「已確認訂單」) */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
@@ -635,7 +672,7 @@ export default function AdminPage() {
             ) : (
               <div className="space-y-4">
                 {activeOrders.map((order) => {
-                  const isShipped = order.status === 'completed' || order.status === '已出貨';
+                  const isConfirmed = order.status === 'completed' || order.status === '已確認訂單' || order.status === '已出貨';
                   const isDelivery = order.pickup_type === '宅配快遞';
 
                   return (
@@ -650,7 +687,6 @@ export default function AdminPage() {
                           </span>
                           <span className="text-stone-600 text-sm">📞 {order.customer_phone}</span>
                           
-                          {/* 🌟 宅配 vs 自取 醒目標籤 */}
                           <span
                             className={`text-xs px-2.5 py-0.5 rounded-full font-bold ${
                               isDelivery
@@ -675,7 +711,6 @@ export default function AdminPage() {
                           📝 顧客下單時間：{new Date(order.created_at).toLocaleString('zh-TW')}
                         </p>
 
-                        {/* 🌟 醒目呈現宅配地址與備註資訊 */}
                         {order.note && (
                           <div className={`p-3 rounded-lg text-xs border ${
                             isDelivery ? 'bg-blue-50/80 border-blue-200 text-blue-950' : 'bg-white border-stone-200 text-stone-700'
@@ -704,18 +739,19 @@ export default function AdminPage() {
                         </span>
 
                         <div className="flex flex-col items-end space-y-2">
+                          {/* 🌟 狀態名稱更名為已確認訂單 */}
                           <span
                             className={`text-xs px-3 py-1 rounded-full font-bold ${
-                              isShipped
+                              isConfirmed
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : 'bg-amber-100 text-amber-800 animate-pulse'
                             }`}
                           >
-                            狀態：{isShipped ? '✅ 已出貨' : '⏳ 待處理'}
+                            狀態：{isConfirmed ? '✅ 已確認訂單' : '⏳ 待處理'}
                           </span>
 
                           <div className="flex items-center space-x-2">
-                            {isShipped ? (
+                            {isConfirmed ? (
                               <button
                                 onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
                                 className="text-xs text-stone-500 underline hover:text-stone-800"
@@ -724,10 +760,10 @@ export default function AdminPage() {
                               </button>
                             ) : (
                               <button
-                                onClick={() => handleUpdateOrderStatus(order.id, '已出貨')}
+                                onClick={() => handleUpdateOrderStatus(order.id, '已確認訂單')}
                                 className="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-800 transition shadow-sm"
                               >
-                                改為已出貨
+                                改為已確認訂單
                               </button>
                             )}
 
