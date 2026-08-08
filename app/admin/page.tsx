@@ -92,7 +92,7 @@ export default function AdminPage() {
       if (prodRes.data) {
         setProducts(prodRes.data);
         if (prodRes.data.length > 0 && !selectedCategory) {
-          setSelectedCategory(prodRes.data[0].category || '未分類');
+          setSelectedCategory(prodRes.data[0].category || '吐司類');
         }
       }
       if (orderRes.data) setOrders(orderRes.data);
@@ -112,9 +112,13 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 動態抓取商品現有類別與資料庫類別
+  // 🌟 只保留「吐司類」與「甜點類」作為靜態預設，移除「可頌類」與「歐包類」
   const existingCategories = Array.from(
     new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c) && c.trim() !== ''))
+  );
+  const defaultCategories = ['吐司類', '甜點類'];
+  const allAvailableCategories = Array.from(
+    new Set([...existingCategories, ...defaultCategories])
   );
 
   const categoryOrderMap: { [cat: string]: number } = {};
@@ -124,40 +128,11 @@ export default function AdminPage() {
     }
   });
 
-  const dbCategoryNames = categorySettings.map((c) => c.category_name);
-  const allAvailableCategories = Array.from(new Set([...dbCategoryNames, ...existingCategories]));
-
   const sortedCategories = [...allAvailableCategories].sort((a, b) => {
     const orderA = categoryOrderMap[a] ?? 999;
     const orderB = categoryOrderMap[b] ?? 999;
     return orderA - orderB;
   });
-
-  // 🧹 一鍵清理廢棄類別（可頌類、歐包類）
-  const handleCleanupDeprecatedCategories = async () => {
-    if (!confirm('確定要一鍵將所有屬於【可頌類】與【歐包類】的商品轉為『未分類』並清除這兩個類別嗎？')) {
-      return;
-    }
-
-    try {
-      // 1. 將舊商品改為 '未分類'
-      await supabase
-        .from('products')
-        .update({ category: '未分類' })
-        .in('category', ['可頌類', '歐包類']);
-
-      // 2. 清除類別設定表中的廢棄資料
-      await supabase
-        .from('category_settings')
-        .delete()
-        .in('category_name', ['可頌類', '歐包類']);
-
-      alert('🎉 已成功清除【可頌類】與【歐包類】！');
-      fetchData();
-    } catch (err: any) {
-      alert(`清理發生例外：${err.message}`);
-    }
-  };
 
   // 類別順序調整（左移 / 右移）
   const handleMoveCategory = async (catName: string, direction: 'left' | 'right') => {
@@ -514,58 +489,43 @@ export default function AdminPage() {
           <div className="space-y-10">
             {/* 類別顯示順序設定區塊 */}
             <section className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
-                <h2 className="text-base font-bold text-amber-950 flex items-center">
-                  📁 調整類別顯示順序
-                </h2>
-                {(sortedCategories.includes('可頌類') || sortedCategories.includes('歐包類')) && (
-                  <button
-                    type="button"
-                    onClick={handleCleanupDeprecatedCategories}
-                    className="text-xs bg-rose-100 hover:bg-rose-200 text-rose-800 font-bold px-3 py-1.5 rounded-lg border border-rose-300 transition"
-                  >
-                    🧹 一鍵清理廢棄類別（可頌類、歐包類）
-                  </button>
-                )}
-              </div>
+              <h2 className="text-base font-bold text-amber-950 mb-2 flex items-center">
+                📁 調整類別顯示順序
+              </h2>
               <p className="text-xs text-stone-600 mb-4">
                 利用按鈕左右調整類別順序，前台會依照此處排定的順序顯示！
               </p>
 
-              {sortedCategories.length === 0 ? (
-                <p className="text-stone-400 text-xs">目前尚無類別</p>
-              ) : (
-                <div className="flex flex-wrap gap-3">
-                  {sortedCategories.map((catName, index) => (
-                    <div
-                      key={catName}
-                      className="bg-white border border-amber-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 shadow-xs"
-                    >
-                      <span>📁 {catName}</span>
-                      <div className="flex space-x-1 pl-1 border-l border-stone-200 items-center">
-                        <button
-                          type="button"
-                          onClick={() => handleMoveCategory(catName, 'left')}
-                          disabled={index === 0}
-                          className="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 rounded text-stone-700 disabled:opacity-30"
-                          title="向左移"
-                        >
-                          ⬅️
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveCategory(catName, 'right')}
-                          disabled={index === sortedCategories.length - 1}
-                          className="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 rounded text-stone-700 disabled:opacity-30"
-                          title="向右移"
-                        >
-                          ➡️
-                        </button>
-                      </div>
+              <div className="flex flex-wrap gap-3">
+                {sortedCategories.map((catName, index) => (
+                  <div
+                    key={catName}
+                    className="bg-white border border-amber-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 shadow-xs"
+                  >
+                    <span>📁 {catName}</span>
+                    <div className="flex space-x-1 pl-1 border-l border-stone-200 items-center">
+                      <button
+                        type="button"
+                        onClick={() => handleMoveCategory(catName, 'left')}
+                        disabled={index === 0}
+                        className="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 rounded text-stone-700 disabled:opacity-30"
+                        title="向左移"
+                      >
+                        ⬅️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveCategory(catName, 'right')}
+                        disabled={index === sortedCategories.length - 1}
+                        className="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 rounded text-stone-700 disabled:opacity-30"
+                        title="向右移"
+                      >
+                        ➡️
+                      </button>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
             </section>
 
             {/* 新增商品表單 */}
@@ -600,7 +560,7 @@ export default function AdminPage() {
                       <option value="➕ 新增自訂類別">➕ 新增自訂類別...</option>
                     </select>
 
-                    {(selectedCategory === '➕ 新增自訂類別' || sortedCategories.length === 0) && (
+                    {selectedCategory === '➕ 新增自訂類別' && (
                       <input
                         type="text"
                         value={customCategory}
@@ -667,8 +627,6 @@ export default function AdminPage() {
               <h2 className="text-xl font-bold text-amber-900 mb-6">📋 已建立商品清單 (依類別分區)</h2>
               {loading ? (
                 <p className="text-stone-400">載入商品清單中...</p>
-              ) : sortedCategories.length === 0 ? (
-                <p className="text-stone-400 py-4 text-center">目前尚無任何商品與類別，請於上方新增第一個商品品項！</p>
               ) : (
                 <div className="space-y-8">
                   {sortedCategories.map((catName) => {
