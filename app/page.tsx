@@ -11,6 +11,7 @@ interface Product {
   image_url: string;
   category: string;
   is_active: boolean;
+  display_order?: number;
 }
 
 interface CartItem extends Product {
@@ -50,7 +51,7 @@ export default function HomePage() {
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  // 🌟 新增：日期選擇行內錯誤訊息（避免使用 alert 導致手機無限迴圈）
+  // 日期選擇行內錯誤訊息
   const [dateError, setDateError] = useState<string>('');
 
   // 訂單電話查詢 Modal State
@@ -76,21 +77,21 @@ export default function HomePage() {
     const d = parseLocalDate(dateStr);
     if (!d) return false;
     const day = d.getDay();
-    return day === 0 || day === 1; // 0 是週日，1 是週一[cite: 2]
+    return day === 0 || day === 1;
   };
 
   useEffect(() => {
     const today = new Date();
-    today.setDate(today.getDate() + 2); // 至少提前 2 天預訂[cite: 2]
+    today.setDate(today.getDate() + 2);
 
     while (today.getDay() === 0 || today.getDay() === 1) {
-      today.setDate(today.getDate() + 1); //[cite: 2]
+      today.setDate(today.getDate() + 1);
     }
 
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
-    setMinDate(`${yyyy}-${mm}-${dd}`); //[cite: 2]
+    setMinDate(`${yyyy}-${mm}-${dd}`);
   }, []);
 
   const fetchProducts = async () => {
@@ -102,6 +103,7 @@ export default function HomePage() {
           .from('products')
           .select('*')
           .eq('is_active', true)
+          .order('display_order', { ascending: true })
           .order('id', { ascending: true }),
         supabase
           .from('category_settings')
@@ -129,7 +131,6 @@ export default function HomePage() {
     fetchProducts();
   }, []);
 
-  // 電話查詢訂單邏輯[cite: 2]
   const handleLookupOrders = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lookupPhone.trim()) {
@@ -220,34 +221,15 @@ export default function HomePage() {
     return acc;
   }, {});
 
-  const extractQuantity = (name: string): number => {
-    const match = name.match(/(\d+)\s*(入|個|顆|盒|隻|pcs)?/i) || name.match(/\d+/);
-    return match ? parseInt(match[1], 10) : 999;
-  };
-
+  // 🌟 核心調整：類別內部的商品依照 display_order 優先排序
   Object.keys(categorizedProducts).forEach((cat) => {
     categorizedProducts[cat].sort((a, b) => {
-      const isAGift = a.name.includes('禮盒');
-      const isBGift = b.name.includes('禮盒');
-
-      if (isAGift && !isBGift) return 1;
-      if (!isAGift && isBGift) return -1;
-
-      if (isAGift && isBGift) {
-        const qtyA = extractQuantity(a.name);
-        const qtyB = extractQuantity(b.name);
-        if (qtyA !== qtyB) return qtyA - qtyB;
+      const orderA = a.display_order ?? 999;
+      const orderB = b.display_order ?? 999;
+      if (orderA !== orderB) {
+        return orderA - orderB;
       }
-
-      const numA = a.name.match(/\d+/);
-      const numB = b.name.match(/\d+/);
-
-      if (numA && numB) {
-        const diff = parseInt(numA[0], 10) - parseInt(numB[0], 10);
-        if (diff !== 0) return diff;
-      }
-
-      return a.name.localeCompare(b.name, 'zh-Hant');
+      return a.id - b.id;
     });
   });
 
@@ -259,7 +241,6 @@ export default function HomePage() {
     return 0;
   });
 
-  // 🌟 安全日期切換邏輯：取消 alert 彈窗，全面改用行內錯誤提示，徹底消除手機無限迴圈！
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedDate = e.target.value;
     setDateError('');
@@ -269,14 +250,12 @@ export default function HomePage() {
       return;
     }
 
-    // 1. 檢測公休日（週日、週一）
     if (isClosedDay(selectedDate)) {
       setDateError('⚠️ 週日與週一為公休日，無法安排取貨／寄送，請改選其他日期！');
       setPickupDate('');
       return;
     }
 
-    // 2. 檢測是否小於最早可預約日期（後天）
     if (minDate && selectedDate < minDate) {
       setDateError(`⚠️ 需提前至少 2 天預訂，最早可預約日期為：${minDate}`);
       setPickupDate('');
@@ -387,7 +366,6 @@ export default function HomePage() {
   return (
     <main className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-stone-50 overflow-x-hidden">
       <header className="-mx-3 -mt-3 sm:mx-auto sm:mt-0 max-w-5xl text-center mb-6 md:mb-10 flex flex-col items-center relative">
-        {/* 頂部電話查詢按鈕 */}
         <div className="w-full flex justify-end mb-2 px-3">
           <button
             onClick={() => {
@@ -698,7 +676,6 @@ export default function HomePage() {
                     }`}
                     required
                   />
-                  {/* 🌟 行內錯誤提示：直接顯現在輸入框下方，不會彈窗、不會觸發迴圈 */}
                   {dateError && (
                     <p className="text-[11px] text-rose-600 font-bold mt-1 bg-rose-50 p-1.5 rounded border border-rose-200">
                       {dateError}
@@ -754,7 +731,7 @@ export default function HomePage() {
         </section>
       </div>
 
-      {/* 電話查詢預約訂單彈窗 Modal[cite: 2] */}
+      {/* 電話查詢預約訂單彈窗 Modal */}
       {showLookupModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-stone-200">
@@ -788,7 +765,7 @@ export default function HomePage() {
               </button>
             </form>
 
-            {/* 查詢結果列表[cite: 2] */}
+            {/* 查詢結果列表 */}
             {lookupResults !== null && (
               <div className="space-y-3 pt-2">
                 {lookupResults.length === 0 ? (
@@ -797,7 +774,7 @@ export default function HomePage() {
                   </p>
                 ) : (
                   lookupResults.map((order) => {
-                    const isShipped = order.status === 'completed' || order.status === '已出貨';
+                    const isShipped = order.status === 'completed' || order.status === '已確認訂單' || order.status === '已出貨';
                     const isDelivery = order.pickup_type === '宅配快遞';
 
                     return (
@@ -830,13 +807,13 @@ export default function HomePage() {
                                 : 'bg-amber-100 text-amber-800'
                             }`}
                           >
-                            {isShipped ? '✅ 已完成 / 出貨' : '⏳ 處理中'}
+                            {isShipped ? '✅ 已確認訂單' : '⏳ 處理中'}
                           </span>
                         </div>
 
                         <p className="text-stone-700">
                           <strong>⏰ 預約時間：</strong>
-                          <span className="font-bold text-amber-900">{order.pickup_date}</span>
+                          <span className="font-bold text-amber-950">{order.pickup_date}</span>
                         </p>
 
                         {order.note && (

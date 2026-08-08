@@ -78,7 +78,7 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const [prodRes, orderRes, pinRes] = await Promise.all([
-        supabase.from('products').select('*').order('id', { ascending: false }),
+        supabase.from('products').select('*').order('display_order', { ascending: true }).order('id', { ascending: false }),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('category_settings').select('*'),
       ]);
@@ -166,8 +166,8 @@ export default function AdminPage() {
     }
   };
 
-  // 🌟 核心功能 1：調整商品前後順序（上移 / 下移）
-  const handleMoveProduct = (index: number, direction: 'up' | 'down') => {
+  // 🌟 調整商品前後順序並同步更新 Supabase display_order
+  const handleMoveProduct = async (index: number, direction: 'up' | 'down') => {
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= products.length) return;
 
@@ -176,10 +176,33 @@ export default function AdminPage() {
     newProducts[index] = newProducts[targetIndex];
     newProducts[targetIndex] = temp;
 
-    setProducts(newProducts);
+    // 為每項商品賦予 display_order
+    const updatedProducts = newProducts.map((p, idx) => ({
+      ...p,
+      display_order: idx,
+    }));
+
+    setProducts(updatedProducts);
+
+    try {
+      const updates = updatedProducts.map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        category: p.category,
+        display_order: p.display_order,
+      }));
+
+      const { error } = await supabase.from('products').upsert(updates);
+      if (error) {
+        console.error('更新順序失敗:', error.message);
+      }
+    } catch (err) {
+      console.error('更新順序例外:', err);
+    }
   };
 
-  // 🌟 核心功能 2：訂單狀態切換（將「已出貨」改為「已確認訂單」）
+  // 訂單狀態切換
   const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
       setOrders((prev) =>
@@ -319,6 +342,7 @@ export default function AdminPage() {
           category: finalCategory,
           image_url: imageUrl.trim(),
           is_active: true,
+          display_order: products.length,
         },
       ]);
 
@@ -575,7 +599,7 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 已建立商品列表 (🌟 新增前後順序調整按鈕) */}
+            {/* 已建立商品列表 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已建立商品清單</h2>
               {loading ? (
@@ -585,7 +609,6 @@ export default function AdminPage() {
                   {products.map((p, index) => (
                     <div key={p.id} className="py-4 flex justify-between items-center">
                       <div className="flex items-center space-x-4">
-                        {/* 🌟 上下順序調整按鈕區塊 */}
                         <div className="flex flex-col space-y-1">
                           <button
                             type="button"
@@ -661,7 +684,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 頁籤 2：客戶預約單 (🌟 已出貨更名為「已確認訂單」) */}
+        {/* 頁籤 2：客戶預約單 */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
@@ -739,7 +762,6 @@ export default function AdminPage() {
                         </span>
 
                         <div className="flex flex-col items-end space-y-2">
-                          {/* 🌟 狀態名稱更名為已確認訂單 */}
                           <span
                             className={`text-xs px-3 py-1 rounded-full font-bold ${
                               isConfirmed
