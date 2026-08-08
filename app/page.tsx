@@ -213,7 +213,7 @@ export default function HomePage() {
     return acc;
   }, {});
 
-  // 🌟 1. 商品於類別內依 display_order 排序
+  // 1. 商品於類別內依 display_order 排序
   Object.keys(categorizedProducts).forEach((cat) => {
     categorizedProducts[cat].sort((a, b) => {
       const orderA = a.display_order ?? 999;
@@ -225,7 +225,7 @@ export default function HomePage() {
     });
   });
 
-  // 🌟 2. 類別標題依 category_order 排序
+  // 2. 類別標題依 category_order 排序
   const categoryOrderMap: { [cat: string]: number } = {};
   categorySettings.forEach((c) => {
     if (c.category_order !== undefined) {
@@ -403,8 +403,9 @@ export default function HomePage() {
           {!loading &&
             sortedCategoryNames.map((categoryName) => (
               <div key={categoryName} className="space-y-3">
+                {/* 🌟 類別標題：移除圖標，改為純文字顯示 */}
                 <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-300/80 pb-2 flex items-center bg-white px-3 py-1.5 rounded-lg border border-stone-200">
-                  <span>📁 {categoryName}</span>
+                  <span>{categoryName}</span>
                 </h2>
 
                 <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">

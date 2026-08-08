@@ -83,13 +83,10 @@ export default function AdminPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      let prodQuery = supabase.from('products').select('*');
-      let catQuery = supabase.from('category_settings').select('*');
-
       const [prodRes, orderRes, catRes] = await Promise.all([
-        prodQuery,
+        supabase.from('products').select('*'),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
-        catQuery,
+        supabase.from('category_settings').select('*'),
       ]);
 
       if (prodRes.data) {
@@ -119,12 +116,8 @@ export default function AdminPage() {
   const existingCategories = Array.from(
     new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c) && c.trim() !== ''))
   );
-  const defaultCategories = ['吐司類', '可頌類', '歐包類', '甜點類'];
-  const allAvailableCategories = Array.from(
-    new Set([...existingCategories, ...defaultCategories])
-  );
 
-  // 取得類別排序 map
+  // 類別資料庫與商品類別聯集
   const categoryOrderMap: { [cat: string]: number } = {};
   categorySettings.forEach((c) => {
     if (c.category_order !== undefined) {
@@ -132,13 +125,16 @@ export default function AdminPage() {
     }
   });
 
+  const dbCategoryNames = categorySettings.map((c) => c.category_name);
+  const allAvailableCategories = Array.from(new Set([...dbCategoryNames, ...existingCategories]));
+
   const sortedCategories = [...allAvailableCategories].sort((a, b) => {
     const orderA = categoryOrderMap[a] ?? 999;
     const orderB = categoryOrderMap[b] ?? 999;
     return orderA - orderB;
   });
 
-  // 🌟 1. 類別順序調整（左移 / 右移）
+  // 類別順序調整（左移 / 右移）
   const handleMoveCategory = async (catName: string, direction: 'left' | 'right') => {
     const index = sortedCategories.indexOf(catName);
     const targetIndex = direction === 'left' ? index - 1 : index + 1;
@@ -163,6 +159,34 @@ export default function AdminPage() {
       }
     } catch (err: any) {
       alert(`更新例外：${err.message}`);
+    }
+  };
+
+  // 🌟 核心功能：刪除類別
+  const handleDeleteCategory = async (catName: string) => {
+    const catProducts = products.filter((p) => (p.category || '未分類') === catName);
+
+    if (catProducts.length > 0) {
+      alert(`⚠️ 無法刪除【${catName}】！\n該類別目前還有 ${catProducts.length} 個商品，請先將商品刪除或移至其他類別。`);
+      return;
+    }
+
+    if (!confirm(`確定要刪除【${catName}】類別嗎？`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('category_settings')
+        .delete()
+        .eq('category_name', catName);
+
+      if (error) {
+        alert(`❌ 刪除類別失敗：${error.message}`);
+      } else {
+        alert(`🗑️ 已成功刪除類別【${catName}】！`);
+        fetchData();
+      }
+    } catch (err: any) {
+      alert(`刪除類別發生例外：${err.message}`);
     }
   };
 
@@ -191,7 +215,7 @@ export default function AdminPage() {
     }
   };
 
-  // 🌟 2. 類別內部商品順序調整（上移 / 下移）
+  // 類別內部商品順序調整（上移 / 下移）
   const handleMoveProductInCategory = async (category: string, productIndexInCat: number, direction: 'up' | 'down') => {
     const catProducts = products
       .filter((p) => (p.category || '未分類') === category)
@@ -491,13 +515,13 @@ export default function AdminPage() {
         {/* 頁籤 1：商品管理 */}
         {activeTab === 'products' && (
           <div className="space-y-10">
-            {/* 🌟 1. 類別顯示順序設定區塊 */}
+            {/* 類別顯示順序與刪除設定區塊 */}
             <section className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-sm">
               <h2 className="text-base font-bold text-amber-950 mb-2 flex items-center">
-                📁 調整類別的前後顯示順序
+                📁 調整類別順序與管理
               </h2>
               <p className="text-xs text-stone-600 mb-4">
-                利用按鈕左右調整類別順序，前台會依照此處排定的類別順序顯示！
+                利用按鈕調整類別顯示順序，或是點擊紅色 ✕ 按鈕刪除不需要的類別（需先移走類別內商品）。
               </p>
 
               <div className="flex flex-wrap gap-3">
@@ -507,7 +531,7 @@ export default function AdminPage() {
                     className="bg-white border border-amber-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 shadow-xs"
                   >
                     <span>📁 {catName}</span>
-                    <div className="flex space-x-1 pl-1 border-l border-stone-200">
+                    <div className="flex space-x-1 pl-1 border-l border-stone-200 items-center">
                       <button
                         type="button"
                         onClick={() => handleMoveCategory(catName, 'left')}
@@ -525,6 +549,15 @@ export default function AdminPage() {
                         title="向右移"
                       >
                         ➡️
+                      </button>
+                      {/* 🌟 類別刪除按鈕 */}
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCategory(catName)}
+                        className="ml-1 text-rose-600 hover:text-rose-800 font-extrabold px-1.5 py-0.5 hover:bg-rose-50 rounded"
+                        title="刪除此類別"
+                      >
+                        ✕
                       </button>
                     </div>
                   </div>
@@ -626,7 +659,7 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 🌟 2. 已建立商品清單（依類別分區與獨立排序） */}
+            {/* 已建立商品清單 (依類別分區) */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-6">📋 已建立商品清單 (依類別分區)</h2>
               {loading ? (
@@ -640,9 +673,11 @@ export default function AdminPage() {
 
                     return (
                       <div key={catName} className="border border-stone-200 rounded-2xl p-4 bg-stone-50/50">
-                        <h3 className="font-bold text-amber-950 text-base mb-3 pb-2 border-b border-stone-200 flex items-center">
-                          <span>📁 {catName}</span>
-                          <span className="ml-2 text-xs text-stone-500 font-normal">({catProducts.length} 個商品)</span>
+                        <h3 className="font-bold text-amber-950 text-base mb-3 pb-2 border-b border-stone-200 flex items-center justify-between">
+                          <div className="flex items-center">
+                            <span>📁 {catName}</span>
+                            <span className="ml-2 text-xs text-stone-500 font-normal">({catProducts.length} 個商品)</span>
+                          </div>
                         </h3>
 
                         {catProducts.length === 0 ? (
@@ -652,7 +687,6 @@ export default function AdminPage() {
                             {catProducts.map((p, index) => (
                               <div key={p.id} className="py-3 flex justify-between items-center">
                                 <div className="flex items-center space-x-3">
-                                  {/* 同類別內的上下排序按鈕 */}
                                   <div className="flex flex-col space-y-1">
                                     <button
                                       type="button"
