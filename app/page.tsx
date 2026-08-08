@@ -31,9 +31,14 @@ interface LookedUpOrder {
   status: string;
 }
 
+interface CategorySetting {
+  category_name: string;
+  category_order?: number;
+}
+
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [pinnedCategories, setPinnedCategories] = useState<string[]>([]);
+  const [categorySettings, setCategorySettings] = useState<CategorySetting[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -93,26 +98,10 @@ export default function HomePage() {
     setLoading(true);
     setErrorMsg('');
     try {
-      // 🌟 安全查詢：相容欄位尚未建立的情況
-      let prodRes = await supabase
-        .from('products')
-        .select('*')
-        .eq('is_active', true)
-        .order('display_order', { ascending: true })
-        .order('id', { ascending: true });
-
-      if (prodRes.error && prodRes.error.message.includes('display_order')) {
-        prodRes = await supabase
-          .from('products')
-          .select('*')
-          .eq('is_active', true)
-          .order('id', { ascending: true });
-      }
-
-      const pinRes = await supabase
-        .from('category_settings')
-        .select('category_name')
-        .eq('is_pinned', true);
+      const [prodRes, catRes] = await Promise.all([
+        supabase.from('products').select('*').eq('is_active', true),
+        supabase.from('category_settings').select('*'),
+      ]);
 
       if (prodRes.error) {
         setErrorMsg(`無法讀取商品：${prodRes.error.message}`);
@@ -120,8 +109,8 @@ export default function HomePage() {
         setProducts(prodRes.data);
       }
 
-      if (pinRes.data) {
-        setPinnedCategories(pinRes.data.map((c) => c.category_name));
+      if (catRes.data) {
+        setCategorySettings(catRes.data);
       }
     } catch (err: any) {
       setErrorMsg(`連線例外：${err.message}`);
@@ -224,6 +213,7 @@ export default function HomePage() {
     return acc;
   }, {});
 
+  // 🌟 1. 商品於類別內依 display_order 排序
   Object.keys(categorizedProducts).forEach((cat) => {
     categorizedProducts[cat].sort((a, b) => {
       const orderA = a.display_order ?? 999;
@@ -235,12 +225,18 @@ export default function HomePage() {
     });
   });
 
+  // 🌟 2. 類別標題依 category_order 排序
+  const categoryOrderMap: { [cat: string]: number } = {};
+  categorySettings.forEach((c) => {
+    if (c.category_order !== undefined) {
+      categoryOrderMap[c.category_name] = c.category_order;
+    }
+  });
+
   const sortedCategoryNames = Object.keys(categorizedProducts).sort((a, b) => {
-    const isAPinned = pinnedCategories.includes(a);
-    const isBPinned = pinnedCategories.includes(b);
-    if (isAPinned && !isBPinned) return -1;
-    if (!isAPinned && isBPinned) return 1;
-    return 0;
+    const orderA = categoryOrderMap[a] ?? 999;
+    const orderB = categoryOrderMap[b] ?? 999;
+    return orderA - orderB;
   });
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -408,12 +404,7 @@ export default function HomePage() {
             sortedCategoryNames.map((categoryName) => (
               <div key={categoryName} className="space-y-3">
                 <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-300/80 pb-2 flex items-center bg-white px-3 py-1.5 rounded-lg border border-stone-200">
-                  <span>{categoryName}</span>
-                  {pinnedCategories.includes(categoryName) && (
-                    <span className="ml-2 text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-normal">
-                      熱門推薦
-                    </span>
-                  )}
+                  <span>📁 {categoryName}</span>
                 </h2>
 
                 <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">

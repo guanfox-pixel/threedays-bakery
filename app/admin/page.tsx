@@ -28,6 +28,12 @@ interface Order {
   is_deleted?: boolean;
 }
 
+interface CategorySetting {
+  category_name: string;
+  is_pinned?: boolean;
+  category_order?: number;
+}
+
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState<string>('');
@@ -35,7 +41,7 @@ export default function AdminPage() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [pinnedCategories, setPinnedCategories] = useState<string[]>([]);
+  const [categorySettings, setCategorySettings] = useState<CategorySetting[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   // 新增商品 State
@@ -77,23 +83,13 @@ export default function AdminPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 🌟 安全查詢：若 display_order 不存在則自動降級使用原本排序
-      let prodRes = await supabase
-        .from('products')
-        .select('*')
-        .order('display_order', { ascending: true })
-        .order('id', { ascending: false });
+      let prodQuery = supabase.from('products').select('*');
+      let catQuery = supabase.from('category_settings').select('*');
 
-      if (prodRes.error && prodRes.error.message.includes('display_order')) {
-        prodRes = await supabase
-          .from('products')
-          .select('*')
-          .order('id', { ascending: false });
-      }
-
-      const [orderRes, pinRes] = await Promise.all([
+      const [prodRes, orderRes, catRes] = await Promise.all([
+        prodQuery,
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
-        supabase.from('category_settings').select('*'),
+        catQuery,
       ]);
 
       if (prodRes.data) {
@@ -103,8 +99,8 @@ export default function AdminPage() {
         }
       }
       if (orderRes.data) setOrders(orderRes.data);
-      if (pinRes.data) {
-        setPinnedCategories(pinRes.data.filter((c) => c.is_pinned).map((c) => c.category_name));
+      if (catRes.data) {
+        setCategorySettings(catRes.data);
       }
     } catch (err) {
       console.error('抓取資料失敗:', err);
@@ -119,6 +115,7 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
+  // 現有類別清單與排序整理
   const existingCategories = Array.from(
     new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c) && c.trim() !== ''))
   );
@@ -127,31 +124,49 @@ export default function AdminPage() {
     new Set([...existingCategories, ...defaultCategories])
   );
 
-  const handleToggleCategoryPin = async (catName: string) => {
-    const isCurrentlyPinned = pinnedCategories.includes(catName);
-    const targetState = !isCurrentlyPinned;
+  // 取得類別排序 map
+  const categoryOrderMap: { [cat: string]: number } = {};
+  categorySettings.forEach((c) => {
+    if (c.category_order !== undefined) {
+      categoryOrderMap[c.category_name] = c.category_order;
+    }
+  });
+
+  const sortedCategories = [...allAvailableCategories].sort((a, b) => {
+    const orderA = categoryOrderMap[a] ?? 999;
+    const orderB = categoryOrderMap[b] ?? 999;
+    return orderA - orderB;
+  });
+
+  // 🌟 1. 類別順序調整（左移 / 右移）
+  const handleMoveCategory = async (catName: string, direction: 'left' | 'right') => {
+    const index = sortedCategories.indexOf(catName);
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= sortedCategories.length) return;
+
+    const newSorted = [...sortedCategories];
+    const temp = newSorted[index];
+    newSorted[index] = newSorted[targetIndex];
+    newSorted[targetIndex] = temp;
+
+    const updates = newSorted.map((cat, idx) => ({
+      category_name: cat,
+      category_order: idx,
+    }));
 
     try {
-      setPinnedCategories((prev) =>
-        targetState ? [...prev, catName] : prev.filter((c) => c !== catName)
-      );
-
-      const { error } = await supabase
-        .from('category_settings')
-        .upsert({ category_name: catName, is_pinned: targetState });
-
+      const { error } = await supabase.from('category_settings').upsert(updates);
       if (error) {
-        alert(`❌ 更新類別置頂失敗：${error.message}`);
-        fetchData();
+        alert(`❌ 類別順序更新失敗：${error.message}`);
       } else {
-        alert(targetState ? `📌 已將【${catName}】設為前台置頂！` : `已取消【${catName}】置頂！`);
+        fetchData();
       }
     } catch (err: any) {
-      alert(`例外錯誤：${err.message}`);
-      fetchData();
+      alert(`更新例外：${err.message}`);
     }
   };
 
+  // 切換商品上下架狀態
   const handleToggleProductActive = async (productId: number, currentIsActive: boolean) => {
     const targetState = !currentIsActive;
     try {
@@ -176,38 +191,36 @@ export default function AdminPage() {
     }
   };
 
-  const handleMoveProduct = async (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= products.length) return;
+  // 🌟 2. 類別內部商品順序調整（上移 / 下移）
+  const handleMoveProductInCategory = async (category: string, productIndexInCat: number, direction: 'up' | 'down') => {
+    const catProducts = products
+      .filter((p) => (p.category || '未分類') === category)
+      .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999));
 
-    const newProducts = [...products];
-    const temp = newProducts[index];
-    newProducts[index] = newProducts[targetIndex];
-    newProducts[targetIndex] = temp;
+    const targetIndex = direction === 'up' ? productIndexInCat - 1 : productIndexInCat + 1;
+    if (targetIndex < 0 || targetIndex >= catProducts.length) return;
 
-    const updatedProducts = newProducts.map((p, idx) => ({
-      ...p,
+    const temp = catProducts[productIndexInCat];
+    catProducts[productIndexInCat] = catProducts[targetIndex];
+    catProducts[targetIndex] = temp;
+
+    const updates = catProducts.map((p, idx) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      category: p.category,
       display_order: idx,
     }));
 
-    setProducts(updatedProducts);
-
     try {
-      const updates = updatedProducts.map((p) => ({
-        id: p.id,
-        name: p.name,
-        price: p.price,
-        category: p.category,
-        display_order: p.display_order,
-      }));
-
       const { error } = await supabase.from('products').upsert(updates);
       if (error) {
-        alert(`❌ 順序更新失敗，請確認已在 Supabase SQL 執行新增 display_order 欄位：${error.message}`);
+        alert(`❌ 商品順序更新失敗：${error.message}`);
+      } else {
         fetchData();
       }
     } catch (err: any) {
-      console.error('更新順序例外:', err);
+      alert(`更新例外：${err.message}`);
     }
   };
 
@@ -336,6 +349,8 @@ export default function AdminPage() {
         ? customCategory.trim() || '未分類'
         : selectedCategory || '未分類';
 
+    const catProductsCount = products.filter((p) => (p.category || '未分類') === finalCategory).length;
+
     setSubmitting(true);
     try {
       const { error } = await supabase.from('products').insert([
@@ -346,7 +361,7 @@ export default function AdminPage() {
           category: finalCategory,
           image_url: imageUrl.trim(),
           is_active: true,
-          display_order: products.length,
+          display_order: catProductsCount,
         },
       ]);
 
@@ -476,35 +491,44 @@ export default function AdminPage() {
         {/* 頁籤 1：商品管理 */}
         {activeTab === 'products' && (
           <div className="space-y-10">
-            {/* 類別置頂設定區塊 */}
+            {/* 🌟 1. 類別顯示順序設定區塊 */}
             <section className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-sm">
               <h2 className="text-base font-bold text-amber-950 mb-2 flex items-center">
-                📌 設定前台第一個顯示的「置頂麵包類別」
+                📁 調整類別的前後顯示順序
               </h2>
               <p className="text-xs text-stone-600 mb-4">
-                點擊類別即可進行置頂/取消置頂，置頂類別會優先在顧客前台排在第一個！
+                利用按鈕左右調整類別順序，前台會依照此處排定的類別順序顯示！
               </p>
 
-              <div className="flex flex-wrap gap-2.5">
-                {allAvailableCategories.map((catName) => {
-                  const isPinned = pinnedCategories.includes(catName);
-                  return (
-                    <button
-                      key={catName}
-                      type="button"
-                      onClick={() => handleToggleCategoryPin(catName)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-1.5 ${
-                        isPinned
-                          ? 'bg-amber-800 text-white shadow-sm ring-2 ring-amber-600'
-                          : 'bg-white text-stone-700 border border-stone-200 hover:bg-stone-100'
-                      }`}
-                    >
-                      <span>{isPinned ? '📌' : '📁'}</span>
-                      <span>{catName}</span>
-                      {isPinned && <span className="text-[10px] bg-amber-950 px-1.5 py-0.2 rounded-full">首位置頂</span>}
-                    </button>
-                  );
-                })}
+              <div className="flex flex-wrap gap-3">
+                {sortedCategories.map((catName, index) => (
+                  <div
+                    key={catName}
+                    className="bg-white border border-amber-300 px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-2 shadow-xs"
+                  >
+                    <span>📁 {catName}</span>
+                    <div className="flex space-x-1 pl-1 border-l border-stone-200">
+                      <button
+                        type="button"
+                        onClick={() => handleMoveCategory(catName, 'left')}
+                        disabled={index === 0}
+                        className="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 rounded text-stone-700 disabled:opacity-30"
+                        title="向左移"
+                      >
+                        ⬅️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveCategory(catName, 'right')}
+                        disabled={index === sortedCategories.length - 1}
+                        className="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 rounded text-stone-700 disabled:opacity-30"
+                        title="向右移"
+                      >
+                        ➡️
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
 
@@ -532,9 +556,9 @@ export default function AdminPage() {
                       onChange={(e) => setSelectedCategory(e.target.value)}
                       className="w-full p-2.5 border border-stone-300 rounded-lg bg-white"
                     >
-                      {allAvailableCategories.map((cat) => (
+                      {sortedCategories.map((cat) => (
                         <option key={cat} value={cat}>
-                          📁 {cat} {pinnedCategories.includes(cat) ? '(📌 已置頂)' : ''}
+                          📁 {cat}
                         </option>
                       ))}
                       <option value="➕ 新增自訂類別">➕ 新增自訂類別...</option>
@@ -602,85 +626,103 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 已建立商品列表 */}
+            {/* 🌟 2. 已建立商品清單（依類別分區與獨立排序） */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
-              <h2 className="text-xl font-bold text-amber-900 mb-4">📋 已建立商品清單</h2>
+              <h2 className="text-xl font-bold text-amber-900 mb-6">📋 已建立商品清單 (依類別分區)</h2>
               {loading ? (
                 <p className="text-stone-400">載入商品清單中...</p>
               ) : (
-                <div className="divide-y divide-stone-200">
-                  {products.map((p, index) => (
-                    <div key={p.id} className="py-4 flex justify-between items-center">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex flex-col space-y-1">
-                          <button
-                            type="button"
-                            onClick={() => handleMoveProduct(index, 'up')}
-                            disabled={index === 0}
-                            className="p-1 text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 rounded disabled:opacity-30 disabled:cursor-not-allowed font-bold"
-                            title="上移順序"
-                          >
-                            ⬆️
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveProduct(index, 'down')}
-                            disabled={index === products.length - 1}
-                            className="p-1 text-xs bg-stone-100 hover:bg-stone-200 text-stone-700 rounded disabled:opacity-30 disabled:cursor-not-allowed font-bold"
-                            title="下移順序"
-                          >
-                            ⬇️
-                          </button>
-                        </div>
+                <div className="space-y-8">
+                  {sortedCategories.map((catName) => {
+                    const catProducts = products
+                      .filter((p) => (p.category || '未分類') === catName)
+                      .sort((a, b) => (a.display_order ?? 999) - (b.display_order ?? 999));
 
-                        {p.image_url ? (
-                          <img src={p.image_url} alt={p.name} className="w-14 h-14 object-cover rounded-lg" />
+                    return (
+                      <div key={catName} className="border border-stone-200 rounded-2xl p-4 bg-stone-50/50">
+                        <h3 className="font-bold text-amber-950 text-base mb-3 pb-2 border-b border-stone-200 flex items-center">
+                          <span>📁 {catName}</span>
+                          <span className="ml-2 text-xs text-stone-500 font-normal">({catProducts.length} 個商品)</span>
+                        </h3>
+
+                        {catProducts.length === 0 ? (
+                          <p className="text-stone-400 text-xs py-2">此類別目前無商品</p>
                         ) : (
-                          <div className="w-14 h-14 bg-stone-100 rounded-lg flex items-center justify-center text-xs text-stone-400">無圖</div>
-                        )}
+                          <div className="divide-y divide-stone-200 bg-white rounded-xl px-4 border border-stone-100">
+                            {catProducts.map((p, index) => (
+                              <div key={p.id} className="py-3 flex justify-between items-center">
+                                <div className="flex items-center space-x-3">
+                                  {/* 同類別內的上下排序按鈕 */}
+                                  <div className="flex flex-col space-y-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMoveProductInCategory(catName, index, 'up')}
+                                      disabled={index === 0}
+                                      className="p-1 text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-700 rounded disabled:opacity-30 font-bold"
+                                      title="類別內上移"
+                                    >
+                                      ⬆️
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleMoveProductInCategory(catName, index, 'down')}
+                                      disabled={index === catProducts.length - 1}
+                                      className="p-1 text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-700 rounded disabled:opacity-30 font-bold"
+                                      title="類別內下移"
+                                    >
+                                      ⬇️
+                                    </button>
+                                  </div>
 
-                        <div>
-                          <div className="flex items-center space-x-2">
-                            <h4 className="font-bold text-stone-900">{p.name}</h4>
-                            <span className="text-[11px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-semibold">
-                              {p.category || '未分類'}
-                            </span>
-                            <span
-                              className={`text-[11px] px-2 py-0.5 rounded font-semibold ${
-                                p.is_active
-                                  ? 'bg-emerald-100 text-emerald-800'
-                                  : 'bg-stone-200 text-stone-600'
-                              }`}
-                            >
-                              {p.is_active ? '🟢 已上架' : '🔴 已下架'}
-                            </span>
+                                  {p.image_url ? (
+                                    <img src={p.image_url} alt={p.name} className="w-12 h-12 object-cover rounded-lg" />
+                                  ) : (
+                                    <div className="w-12 h-12 bg-stone-100 rounded-lg flex items-center justify-center text-[10px] text-stone-400">無圖</div>
+                                  )}
+
+                                  <div>
+                                    <div className="flex items-center space-x-2">
+                                      <h4 className="font-bold text-sm text-stone-900">{p.name}</h4>
+                                      <span
+                                        className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                                          p.is_active
+                                            ? 'bg-emerald-100 text-emerald-800'
+                                            : 'bg-stone-200 text-stone-600'
+                                        }`}
+                                      >
+                                        {p.is_active ? '🟢 已上架' : '🔴 已下架'}
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-amber-800 font-semibold mt-0.5">單價: ${p.price} 元</p>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center space-x-2">
+                                  <button
+                                    onClick={() => handleToggleProductActive(p.id, p.is_active)}
+                                    className={`px-2.5 py-1 rounded-lg font-bold text-xs transition ${
+                                      p.is_active
+                                        ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                                        : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                    }`}
+                                  >
+                                    {p.is_active ? '下架' : '上架'}
+                                  </button>
+
+                                  <button
+                                    onClick={() => setEditingProduct(p)}
+                                    className="bg-amber-100 text-amber-900 px-2.5 py-1 rounded-lg font-bold text-xs hover:bg-amber-200 transition"
+                                  >
+                                    ✏️ 編輯
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                          <p className="text-xs text-stone-500">{p.description || '無描述'}</p>
-                          <p className="text-xs text-amber-800 font-semibold mt-1">單價: ${p.price} 元</p>
-                        </div>
+                        )}
                       </div>
-
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={() => handleToggleProductActive(p.id, p.is_active)}
-                          className={`px-3 py-1.5 rounded-lg font-bold text-xs transition ${
-                            p.is_active
-                              ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
-                              : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                          }`}
-                        >
-                          {p.is_active ? '下架商品' : '重新上架'}
-                        </button>
-
-                        <button
-                          onClick={() => setEditingProduct(p)}
-                          className="bg-amber-100 text-amber-900 px-3 py-1.5 rounded-lg font-bold text-xs hover:bg-amber-200 transition"
-                        >
-                          ✏️ 編輯
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
