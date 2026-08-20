@@ -343,7 +343,10 @@ export default function HomePage() {
           }),
         }).catch((err) => console.error('推播失敗:', err));
 
-        // 重置表單狀態
+        // 1. 先顯示原本的預約成功彈窗（使用者按下「確定」前程式會停在此處）
+        alert('🎉 預約單已成功送出！\n\n請點擊頁面上的【💬 聯繫 LINE 官方客服】按鈕，核對訂單並取得匯款帳號，完成付款後訂單才正式成立喔！');
+
+        // 2. 清空表單與購物車
         setCart({});
         setCustomerName('');
         setCustomerPhone('');
@@ -352,8 +355,9 @@ export default function HomePage() {
         setPickupTime('14:00');
         setNote('');
         setDateError('');
+        fetchProducts();
 
-        // 🌟 直接轉跳至 LINE 官方帳號對談頁面
+        // 3. 當使用者在 alert 點擊「確定」後，自動轉跳至 LINE 官方客服對談頁面
         window.location.href = 'https://line.me/R/ti/p/@399mteem';
       }
     } catch (err: any) {
