@@ -343,7 +343,7 @@ export default function HomePage() {
           }),
         }).catch((err) => console.error('推播失敗:', err));
 
-        alert('🎉 預約單已成功送出！\n\n請點擊頁面上的【💬 聯繫 LINE 官方客服】按鈕，核對訂單並取得匯款帳號，完成付款後訂單才正式成立喔！');
+        // 重置表單狀態
         setCart({});
         setCustomerName('');
         setCustomerPhone('');
@@ -352,7 +352,9 @@ export default function HomePage() {
         setPickupTime('14:00');
         setNote('');
         setDateError('');
-        fetchProducts();
+
+        // 🌟 直接轉跳至 LINE 官方帳號對談頁面
+        window.location.href = 'https://line.me/R/ti/p/@399mteem';
       }
     } catch (err: any) {
       alert(`系統例外錯誤: ${err.message}`);
@@ -403,7 +405,7 @@ export default function HomePage() {
           {!loading &&
             sortedCategoryNames.map((categoryName) => (
               <div key={categoryName} className="space-y-3">
-                {/* 🌟 類別標題：移除圖標，改為純文字顯示 */}
+                {/* 🌟 類別標題：純文字顯示 */}
                 <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-300/80 pb-2 flex items-center bg-white px-3 py-1.5 rounded-lg border border-stone-200">
                   <span>{categoryName}</span>
                 </h2>
