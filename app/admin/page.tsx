@@ -54,11 +54,12 @@ export default function AdminPage() {
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 🌟 新增門市 State (改為時間區間)
+  // 🌟 新增門市 State (改為自由設定的開始與結束時間)
   const [locName, setLocName] = useState('');
   const [locAddress, setLocAddress] = useState('');
   const [locDate, setLocDate] = useState('');
-  const [locTimeRange, setLocTimeRange] = useState('14:00-16:00');
+  const [locStartTime, setLocStartTime] = useState('14:00');
+  const [locEndTime, setLocEndTime] = useState('18:00');
 
   // 新增商品 State
   const [name, setName] = useState<string>('');
@@ -132,8 +133,9 @@ export default function AdminPage() {
     e.preventDefault();
     if (!locName.trim()) return alert('請填寫門市/取貨點名稱！');
 
-    // 🌟 組合特定日期與時間區間（例如：2026-10-25 14:00-16:00）
-    const formattedDateTime = locDate ? `${locDate.trim()} ${locTimeRange}` : locTimeRange;
+    // 🌟 自動將自由選擇的開始與結束時間拼成區間 (例如：14:00-18:00)
+    const timeRangeStr = `${locStartTime}-${locEndTime}`;
+    const formattedDateTime = locDate ? `${locDate.trim()} ${timeRangeStr}` : timeRangeStr;
 
     try {
       const { error } = await supabase.from('pickup_locations').insert([
@@ -152,7 +154,8 @@ export default function AdminPage() {
         setLocName('');
         setLocAddress('');
         setLocDate('');
-        setLocTimeRange('14:00-16:00');
+        setLocStartTime('14:00');
+        setLocEndTime('18:00');
         fetchData();
       }
     } catch (err: any) {
@@ -894,13 +897,13 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 🌟 頁籤 3：取貨門市與時間區間設定 */}
+        {/* 🌟 頁籤 3：取貨門市與自訂時間區間 */}
         {activeTab === 'locations' && (
           <div className="space-y-6">
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-950 mb-4">📍 新增自訂取貨門市 / 地點</h2>
               <form onSubmit={handleAddLocation} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">門市/地點名稱 *</label>
                     <input
@@ -922,24 +925,34 @@ export default function AdminPage() {
                       className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white"
                     />
                   </div>
+                </div>
 
-                  {/* 🌟 取貨時間區間選擇器 */}
+                {/* 🌟 自由設定取貨時間區間 (開始時間與結束時間) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50/50 p-4 rounded-xl border border-amber-200">
                   <div>
-                    <label className="block text-sm font-medium mb-1">指定取貨時間區間 *</label>
-                    <select
-                      value={locTimeRange}
-                      onChange={(e) => setLocTimeRange(e.target.value)}
-                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white font-semibold text-amber-950"
-                    >
-                      <option value="14:00-16:00">14:00 - 16:00</option>
-                      <option value="15:00-17:00">15:00 - 17:00</option>
-                      <option value="16:00-18:00">16:00 - 18:00</option>
-                      <option value="17:00-19:00">17:00 - 19:00</option>
-                      <option value="18:00-20:00">18:00 - 20:00</option>
-                      <option value="19:00-21:00">19:00 - 21:00</option>
-                      <option value="14:00-18:00">14:00 - 18:00 (半天全時段)</option>
-                      <option value="18:00-22:00">18:00 - 22:00 (晚間時段)</option>
-                    </select>
+                    <label className="block text-sm font-medium text-amber-950 mb-1">
+                      ⏰ 取貨開始時間 *
+                    </label>
+                    <input
+                      type="time"
+                      value={locStartTime}
+                      onChange={(e) => setLocStartTime(e.target.value)}
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white font-semibold"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-amber-950 mb-1">
+                      ⏰ 取貨結束時間 *
+                    </label>
+                    <input
+                      type="time"
+                      value={locEndTime}
+                      onChange={(e) => setLocEndTime(e.target.value)}
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white font-semibold"
+                      required
+                    />
                   </div>
                 </div>
 

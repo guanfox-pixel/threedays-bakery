@@ -138,7 +138,7 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  // 🌟 自動勾稽並解析時間區間
+  // 🌟 自動勾稽並動態解析自由填寫的日期與時間區間
   const handlePickupTypeChange = (selectedName: string) => {
     setPickupType(selectedName);
     setDateError('');
@@ -723,7 +723,7 @@ export default function HomePage() {
                     {isDateTimeLocked && <span className="text-amber-800 text-[10px] ml-1 font-bold">(固定)</span>}
                   </label>
 
-                  {/* 🌟 若被地點勾稽鎖定，顯示自動帶入的區間文字；否則呈現時段選單 */}
+                  {/* 🌟 被勾稽鎖定時呈現為文字輸入，正常選單時提供時間選單 */}
                   {isDateTimeLocked ? (
                     <input
                       type="text"
