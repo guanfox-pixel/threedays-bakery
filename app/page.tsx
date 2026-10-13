@@ -57,6 +57,7 @@ export default function HomePage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [pickupType, setPickupType] = useState('到店自取 (復興店)');
+  const [selectedLocationAddress, setSelectedLocationAddress] = useState<string>(''); // 🌟 儲存目前選取門市的地址
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [pickupDate, setPickupDate] = useState('');
   const [pickupTime, setPickupTime] = useState('14:00');
@@ -138,28 +139,35 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  // 🌟 自動勾稽並動態解析自由填寫的日期與時間區間
+  // 🌟 切換取貨方式時，同步更新「地址」與「勾稽時間區間」
   const handlePickupTypeChange = (selectedName: string) => {
     setPickupType(selectedName);
     setDateError('');
 
     const matchedLoc = pickupLocations.find((loc) => loc.name === selectedName);
 
-    if (matchedLoc && matchedLoc.pickup_time_slots) {
-      const timeSlots = matchedLoc.pickup_time_slots.trim();
-      const spaceIdx = timeSlots.indexOf(' ');
+    if (matchedLoc) {
+      // 即時記錄門市地址
+      setSelectedLocationAddress(matchedLoc.address || '');
 
-      if (spaceIdx !== -1) {
-        const datePart = timeSlots.substring(0, spaceIdx);
-        const timePart = timeSlots.substring(spaceIdx + 1);
-        setPickupDate(datePart);
-        setPickupTime(timePart);
-      } else {
-        setPickupTime(timeSlots);
+      if (matchedLoc.pickup_time_slots) {
+        const timeSlots = matchedLoc.pickup_time_slots.trim();
+        const spaceIdx = timeSlots.indexOf(' ');
+
+        if (spaceIdx !== -1) {
+          const datePart = timeSlots.substring(0, spaceIdx);
+          const timePart = timeSlots.substring(spaceIdx + 1);
+          setPickupDate(datePart);
+          setPickupTime(timePart);
+        } else {
+          setPickupTime(timeSlots);
+        }
+
+        setIsDateTimeLocked(true);
+        return;
       }
-
-      setIsDateTimeLocked(true);
-      return;
+    } else {
+      setSelectedLocationAddress('');
     }
 
     setIsDateTimeLocked(false);
@@ -325,6 +333,8 @@ export default function HomePage() {
 
     const finalNote = pickupType === '宅配快遞'
       ? `【宅配地址】：${deliveryAddress.trim()}${note.trim() ? `\n【備註】：${note.trim()}` : ''}`
+      : selectedLocationAddress
+      ? `【門市地址】：${selectedLocationAddress}${note.trim() ? `\n【備註】：${note.trim()}` : ''}`
       : note.trim();
 
     try {
@@ -373,6 +383,7 @@ export default function HomePage() {
         setCustomerName('');
         setCustomerPhone('');
         setDeliveryAddress('');
+        setSelectedLocationAddress('');
         setPickupDate('');
         setPickupTime('14:00');
         setIsDateTimeLocked(false);
@@ -671,6 +682,14 @@ export default function HomePage() {
 
                   <option value="宅配快遞">宅配快遞</option>
                 </select>
+
+                {/* 🌟 選取自訂門市時，即時於下方顯示門市詳細地址 */}
+                {selectedLocationAddress && (
+                  <div className="mt-2 p-2.5 bg-amber-50/80 rounded-lg border border-amber-200 text-xs text-amber-950 font-medium flex items-start space-x-1 animate-fadeIn">
+                    <span className="shrink-0">📍</span>
+                    <span><strong>門市地址：</strong>{selectedLocationAddress}</span>
+                  </div>
+                )}
               </div>
 
               {pickupType === '宅配快遞' && (
@@ -723,7 +742,6 @@ export default function HomePage() {
                     {isDateTimeLocked && <span className="text-amber-800 text-[10px] ml-1 font-bold">(固定)</span>}
                   </label>
 
-                  {/* 🌟 被勾稽鎖定時呈現為文字輸入，正常選單時提供時間選單 */}
                   {isDateTimeLocked ? (
                     <input
                       type="text"
