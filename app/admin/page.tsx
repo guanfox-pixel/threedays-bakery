@@ -127,7 +127,6 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 新增取貨點
   const handleAddLocation = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!locName.trim()) return alert('請填寫門市/取貨點名稱！');
@@ -156,7 +155,6 @@ export default function AdminPage() {
     }
   };
 
-  // 切換門市啟用狀態
   const handleToggleLocationActive = async (id: number, currentActive: boolean) => {
     try {
       const { error } = await supabase
@@ -171,7 +169,6 @@ export default function AdminPage() {
     }
   };
 
-  // 刪除門市
   const handleDeleteLocation = async (id: number, name: string) => {
     if (!confirm(`確定要刪除【${name}】取貨地點嗎？`)) return;
     try {
@@ -493,7 +490,6 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* 標籤頁切換按鈕 */}
         <div className="flex space-x-3 mb-6 border-b border-stone-200 pb-4 overflow-x-auto">
           <button
             onClick={() => setActiveTab('products')}
@@ -537,7 +533,6 @@ export default function AdminPage() {
           </button>
         </div>
 
-        {/* 頁籤 1：商品管理 */}
         {activeTab === 'products' && (
           <div className="space-y-10">
             <section className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-sm">
@@ -772,7 +767,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 頁籤 2：客戶預約單 */}
+        {/* 🌟 頁籤 2：客戶預約單（完整顯示 日期 + 時間） */}
         {activeTab === 'orders' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <h2 className="text-xl font-bold text-amber-900 mb-4">📋 客戶預約訂單紀錄</h2>
@@ -809,9 +804,10 @@ export default function AdminPage() {
                           </span>
                         </div>
 
+                        {/* 🌟 後台完整顯示 日期 + 時間 */}
                         <div className="bg-amber-100/90 border border-amber-300 p-2.5 rounded-lg inline-block">
                           <p className="text-xs font-bold text-amber-950">
-                            ⏰ {isDelivery ? '預計寄送時間：' : '預約取貨時間：'}
+                            ⏰ {isDelivery ? '預計寄送日期與時間：' : '預約取貨日期與時間：'}
                             <span className="text-sm font-extrabold text-amber-900 ml-1">
                               {order.pickup_date}
                             </span>
@@ -894,7 +890,6 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 🌟 頁籤 3：取貨門市設定 */}
         {activeTab === 'locations' && (
           <div className="space-y-6">
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
@@ -999,7 +994,6 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* 頁籤 4：垃圾桶 */}
         {activeTab === 'trash' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <div className="flex justify-between items-center mb-6">
@@ -1033,7 +1027,7 @@ export default function AdminPage() {
                         <span className="text-stone-600 text-sm">📞 {order.customer_phone}</span>
                       </div>
                       <p className="text-xs text-amber-900 font-bold bg-amber-100/80 p-1.5 rounded inline-block">
-                        ⏰ 預約取貨時間：{order.pickup_date}
+                        ⏰ 預約日期與時間：{order.pickup_date}
                       </p>
                     </div>
 
@@ -1053,7 +1047,6 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 編輯 Modal 彈窗 */}
         {editingProduct && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
             <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-stone-200">

@@ -70,9 +70,9 @@ export default function HomePage() {
   const [lookupResults, setLookupResults] = useState<LookedUpOrder[] | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
 
-  // 預約成功彈窗 State
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastOrderAmount, setLastOrderAmount] = useState<number>(0);
+  const [lastOrderDateTime, setLastOrderDateTime] = useState<string>('');
   const [copied, setCopied] = useState(false);
 
   const [minDate, setMinDate] = useState('');
@@ -290,6 +290,7 @@ export default function HomePage() {
 
     setSubmitting(true);
 
+    // 🌟 組合完整日期與時間 (例如: 2026-10-15 14:00)
     const selectedTime = pickupTime || '14:00';
     const fullPickupDateTime = `${pickupDate.trim()} ${selectedTime.trim()}`;
 
@@ -336,6 +337,7 @@ export default function HomePage() {
         }).catch((err) => console.error('推播失敗:', err));
 
         setLastOrderAmount(totalPrice);
+        setLastOrderDateTime(fullPickupDateTime);
         setShowSuccessModal(true);
 
         setCart({});
@@ -631,7 +633,6 @@ export default function HomePage() {
                 >
                   <option value="到店自取 (復興店)">到店自取 (復興店)</option>
                   
-                  {/* 🌟 動態渲染後台新增的門市 */}
                   {pickupLocations.map((loc) => (
                     <option key={loc.id} value={loc.name}>
                       {loc.name}
@@ -735,8 +736,12 @@ export default function HomePage() {
             <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl font-bold">
               🎉
             </div>
-            <h3 className="text-xl font-bold text-amber-950 mb-2">預約單已成功送出！</h3>
+            <h3 className="text-xl font-bold text-amber-950 mb-1">預約單已成功送出！</h3>
             
+            <p className="text-xs text-stone-600 mb-3 font-semibold">
+              📅 預約日期與時間：<span className="text-amber-900 font-bold">{lastOrderDateTime}</span>
+            </p>
+
             <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 mb-4">
               <p className="text-xs text-stone-600">本次預約應付總金額：</p>
               <div className="flex items-center justify-center space-x-2 mt-1">
@@ -865,8 +870,9 @@ export default function HomePage() {
                           </span>
                         </div>
 
+                        {/* 🌟 完整顯示 日期 + 時間 */}
                         <p className="text-stone-700">
-                          <strong>⏰ 預約時間：</strong>
+                          <strong>⏰ 預約日期與時間：</strong>
                           <span className="font-bold text-amber-950">{order.pickup_date}</span>
                         </p>
 
