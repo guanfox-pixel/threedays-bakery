@@ -770,4 +770,198 @@ export default function HomePage() {
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white p-6 rounded-2xl max-w-md w-full shadow-2xl border border-stone-200 text-center">
-            <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex
+            <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl font-bold">
+              🎉
+            </div>
+            <h3 className="text-xl font-bold text-amber-950 mb-1">預約單已成功送出！</h3>
+            
+            <p className="text-xs text-stone-600 mb-3 font-semibold">
+              📅 預約日期與時間：<span className="text-amber-900 font-bold">{lastOrderDateTime}</span>
+            </p>
+
+            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 mb-4">
+              <p className="text-xs text-stone-600">本次預約應付總金額：</p>
+              <div className="flex items-center justify-center space-x-2 mt-1">
+                <span className="text-2xl font-extrabold text-amber-950">${lastOrderAmount} 元</span>
+                <button
+                  type="button"
+                  onClick={handleCopyAmount}
+                  className="bg-amber-800 hover:bg-amber-900 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg transition"
+                >
+                  {copied ? '✅ 已複製' : '📋 複製金額'}
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-500 mb-4 leading-relaxed">
+              因靜態商店 QR Code 需手動輸入金額，建議點擊「複製金額」後再前往 LINE Pay 輸入金額完成付款！
+            </p>
+
+            <div className="space-y-3">
+              <a
+                href="https://line.me/R/ti/p/@399mteem"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 shadow-sm transition"
+              >
+                <span>💬 聯繫 LINE 官方客服對話</span>
+              </a>
+
+              <a
+                href="https://line.me/R/ti/p/@399mteem"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 shadow-sm transition"
+              >
+                <span>💳 開啟 LINE Pay 付款 (${lastOrderAmount} 元)</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full bg-stone-100 hover:bg-stone-200 text-stone-600 py-2 rounded-xl text-xs font-semibold mt-1"
+              >
+                關閉視窗
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 電話查詢預約訂單彈窗 Modal */}
+      {showLookupModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-stone-200">
+            <div className="flex justify-between items-center border-b pb-3 mb-4">
+              <h3 className="font-bold text-amber-950 text-base flex items-center">
+                <span>🔍 查詢您的預約訂單</span>
+              </h3>
+              <button
+                onClick={() => setShowLookupModal(false)}
+                className="text-stone-400 hover:text-stone-600 font-bold text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleLookupOrders} className="flex gap-2 mb-4">
+              <input
+                type="tel"
+                value={lookupPhone}
+                onChange={(e) => setLookupPhone(e.target.value)}
+                placeholder="請輸入訂購時留的電話號碼"
+                className="flex-1 p-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm bg-white"
+                required
+              />
+              <button
+                type="submit"
+                disabled={lookupLoading}
+                className="bg-amber-800 hover:bg-amber-900 text-white px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition disabled:bg-stone-300"
+              >
+                {lookupLoading ? '查詢中...' : '查詢'}
+              </button>
+            </form>
+
+            {lookupResults !== null && (
+              <div className="space-y-3 pt-2">
+                {lookupResults.length === 0 ? (
+                  <p className="text-center text-stone-500 text-xs py-6 bg-stone-50 rounded-xl border border-stone-200">
+                    查無電話相符的預約紀錄，請確認電話是否正確！
+                  </p>
+                ) : (
+                  lookupResults.map((order) => {
+                    const isShipped = order.status === 'completed' || order.status === '已確認訂單' || order.status === '已出貨';
+                    const isDelivery = order.pickup_type === '宅配快遞';
+
+                    return (
+                      <div
+                        key={order.id}
+                        className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-2 text-xs"
+                      >
+                        <div className="flex justify-between items-start border-b border-stone-200 pb-2">
+                          <div>
+                            <span className="font-bold text-amber-950 text-sm">
+                              #{order.id} {order.customer_name}
+                            </span>
+                            <div className="flex items-center space-x-2 mt-1">
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  isDelivery
+                                    ? 'bg-blue-100 text-blue-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {isDelivery ? '🚚 宅配快遞' : '🏪 到店自取'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <span
+                            className={`text-xs px-2.5 py-1 rounded-lg font-bold ${
+                              isShipped
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {isShipped ? '✅ 已確認訂單' : '⏳ 處理中'}
+                          </span>
+                        </div>
+
+                        <p className="text-stone-700">
+                          <strong>⏰ 預約日期與時間：</strong>
+                          <span className="font-bold text-amber-950">{order.pickup_date}</span>
+                        </p>
+
+                        {order.note && (
+                          <div className="bg-white p-2 rounded-lg border border-stone-200 text-stone-600 whitespace-pre-line">
+                            <strong>備註 / 地址：</strong> {order.note}
+                          </div>
+                        )}
+
+                        <div className="pt-1">
+                          <p className="font-bold text-stone-800 mb-1">🛒 訂購內容：</p>
+                          <ul className="space-y-0.5 text-stone-600 pl-2">
+                            {order.items?.map((item: any, idx: number) => (
+                              <li key={idx}>
+                                • {item.name} x {item.quantity} (${item.price * item.quantity}元)
+                              </li>
+                            ))}
+                          </ul>
+                          <div className="text-right font-bold text-amber-950 text-sm mt-2 border-t pt-1">
+                            總計：${order.total_amount} 元
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 全螢幕圖片放大燈箱 Modal */}
+      {previewImage && (
+        <div
+          onClick={() => setPreviewImage(null)}
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-xs cursor-zoom-out animate-fadeIn"
+        >
+          <div className="relative max-w-3xl max-h-[90vh] w-full flex items-center justify-center">
+            <button
+              onClick={() => setPreviewImage(null)}
+              className="absolute -top-10 right-0 text-white bg-white/20 hover:bg-white/40 w-8 h-8 rounded-full flex items-center justify-center font-bold text-lg transition"
+            >
+              ✕
+            </button>
+            <img
+              src={previewImage}
+              alt="商品圖片放大"
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            />
+          </div>
+        </div>
+      )}
+    </main>
+  );
+}
