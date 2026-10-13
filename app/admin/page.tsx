@@ -54,10 +54,11 @@ export default function AdminPage() {
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 🌟 新增門市 State（預設提示包含日期與時間）
+  // 🌟 新增門市 State (拆分為日期與時間欄位，方便自動勾稽)
   const [locName, setLocName] = useState('');
   const [locAddress, setLocAddress] = useState('');
-  const [locTimeSlots, setLocTimeSlots] = useState('');
+  const [locDate, setLocDate] = useState('');
+  const [locTime, setLocTime] = useState('14:00');
 
   // 新增商品 State
   const [name, setName] = useState<string>('');
@@ -131,12 +132,15 @@ export default function AdminPage() {
     e.preventDefault();
     if (!locName.trim()) return alert('請填寫門市/取貨點名稱！');
 
+    // 🌟 組合特定日期與時間（例如：2026-10-25 14:00）
+    const formattedDateTime = locDate ? `${locDate.trim()} ${locTime}` : '';
+
     try {
       const { error } = await supabase.from('pickup_locations').insert([
         {
           name: locName.trim(),
           address: locAddress.trim(),
-          pickup_time_slots: locTimeSlots.trim(),
+          pickup_time_slots: formattedDateTime,
           is_active: true,
         },
       ]);
@@ -147,7 +151,8 @@ export default function AdminPage() {
         alert('🎉 成功新增自訂取貨地點！');
         setLocName('');
         setLocAddress('');
-        setLocTimeSlots('');
+        setLocDate('');
+        setLocTime('14:00');
         fetchData();
       }
     } catch (err: any) {
@@ -889,34 +894,51 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 🌟 頁籤 3：取貨門市與日期時間設定 */}
+        {/* 🌟 頁籤 3：取貨門市與特規日期時間設定 */}
         {activeTab === 'locations' && (
           <div className="space-y-6">
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-950 mb-4">📍 新增自訂取貨門市 / 地點</h2>
               <form onSubmit={handleAddLocation} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">門市/地點名稱 *</label>
                     <input
                       type="text"
                       value={locName}
                       onChange={(e) => setLocName(e.target.value)}
-                      placeholder="例如：自取 (站前分店)"
-                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm"
+                      placeholder="例如：站前快閃店"
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white"
                       required
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium mb-1">可取貨日期與時間說明</label>
+                    <label className="block text-sm font-medium mb-1">指定取貨日期 (選填)</label>
                     <input
-                      type="text"
-                      value={locTimeSlots}
-                      onChange={(e) => setLocTimeSlots(e.target.value)}
-                      placeholder="例如：2026/10/25 14:00-20:00 或 每週二至六 14:00-18:00"
-                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm"
+                      type="date"
+                      value={locDate}
+                      onChange={(e) => setLocDate(e.target.value)}
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">指定取貨時間</label>
+                    <select
+                      value={locTime}
+                      onChange={(e) => setLocTime(e.target.value)}
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white"
+                    >
+                      <option value="14:00">14:00</option>
+                      <option value="15:00">15:00</option>
+                      <option value="16:00">16:00</option>
+                      <option value="17:00">17:00</option>
+                      <option value="18:00">18:00</option>
+                      <option value="19:00">19:00</option>
+                      <option value="20:00">20:00</option>
+                      <option value="21:00">21:00</option>
+                    </select>
                   </div>
                 </div>
 
@@ -927,7 +949,7 @@ export default function AdminPage() {
                     value={locAddress}
                     onChange={(e) => setLocAddress(e.target.value)}
                     placeholder="請輸入詳細門市地址..."
-                    className="w-full p-2.5 border border-stone-300 rounded-lg text-sm"
+                    className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white"
                   />
                 </div>
 
@@ -965,7 +987,7 @@ export default function AdminPage() {
                         {loc.address && <p className="text-xs text-stone-600 mt-1">📍 地址：{loc.address}</p>}
                         {loc.pickup_time_slots && (
                           <p className="text-xs text-amber-900 font-semibold mt-0.5">
-                            📅 可取貨日期與時段：{loc.pickup_time_slots}
+                            📅 自動勾稽日期與時間：{loc.pickup_time_slots}
                           </p>
                         )}
                       </div>
