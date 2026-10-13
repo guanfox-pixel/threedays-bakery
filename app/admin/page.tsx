@@ -54,11 +54,11 @@ export default function AdminPage() {
   const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  // 🌟 新增門市 State (拆分為日期與時間欄位，方便自動勾稽)
+  // 🌟 新增門市 State (改為時間區間)
   const [locName, setLocName] = useState('');
   const [locAddress, setLocAddress] = useState('');
   const [locDate, setLocDate] = useState('');
-  const [locTime, setLocTime] = useState('14:00');
+  const [locTimeRange, setLocTimeRange] = useState('14:00-16:00');
 
   // 新增商品 State
   const [name, setName] = useState<string>('');
@@ -132,8 +132,8 @@ export default function AdminPage() {
     e.preventDefault();
     if (!locName.trim()) return alert('請填寫門市/取貨點名稱！');
 
-    // 🌟 組合特定日期與時間（例如：2026-10-25 14:00）
-    const formattedDateTime = locDate ? `${locDate.trim()} ${locTime}` : '';
+    // 🌟 組合特定日期與時間區間（例如：2026-10-25 14:00-16:00）
+    const formattedDateTime = locDate ? `${locDate.trim()} ${locTimeRange}` : locTimeRange;
 
     try {
       const { error } = await supabase.from('pickup_locations').insert([
@@ -152,7 +152,7 @@ export default function AdminPage() {
         setLocName('');
         setLocAddress('');
         setLocDate('');
-        setLocTime('14:00');
+        setLocTimeRange('14:00-16:00');
         fetchData();
       }
     } catch (err: any) {
@@ -894,7 +894,7 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 🌟 頁籤 3：取貨門市與特規日期時間設定 */}
+        {/* 🌟 頁籤 3：取貨門市與時間區間設定 */}
         {activeTab === 'locations' && (
           <div className="space-y-6">
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
@@ -923,21 +923,22 @@ export default function AdminPage() {
                     />
                   </div>
 
+                  {/* 🌟 取貨時間區間選擇器 */}
                   <div>
-                    <label className="block text-sm font-medium mb-1">指定取貨時間</label>
+                    <label className="block text-sm font-medium mb-1">指定取貨時間區間 *</label>
                     <select
-                      value={locTime}
-                      onChange={(e) => setLocTime(e.target.value)}
-                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white"
+                      value={locTimeRange}
+                      onChange={(e) => setLocTimeRange(e.target.value)}
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm bg-white font-semibold text-amber-950"
                     >
-                      <option value="14:00">14:00</option>
-                      <option value="15:00">15:00</option>
-                      <option value="16:00">16:00</option>
-                      <option value="17:00">17:00</option>
-                      <option value="18:00">18:00</option>
-                      <option value="19:00">19:00</option>
-                      <option value="20:00">20:00</option>
-                      <option value="21:00">21:00</option>
+                      <option value="14:00-16:00">14:00 - 16:00</option>
+                      <option value="15:00-17:00">15:00 - 17:00</option>
+                      <option value="16:00-18:00">16:00 - 18:00</option>
+                      <option value="17:00-19:00">17:00 - 19:00</option>
+                      <option value="18:00-20:00">18:00 - 20:00</option>
+                      <option value="19:00-21:00">19:00 - 21:00</option>
+                      <option value="14:00-18:00">14:00 - 18:00 (半天全時段)</option>
+                      <option value="18:00-22:00">18:00 - 22:00 (晚間時段)</option>
                     </select>
                   </div>
                 </div>
@@ -987,7 +988,7 @@ export default function AdminPage() {
                         {loc.address && <p className="text-xs text-stone-600 mt-1">📍 地址：{loc.address}</p>}
                         {loc.pickup_time_slots && (
                           <p className="text-xs text-amber-900 font-semibold mt-0.5">
-                            📅 自動勾稽日期與時間：{loc.pickup_time_slots}
+                            📅 自動勾稽日期與時間區間：{loc.pickup_time_slots}
                           </p>
                         )}
                       </div>

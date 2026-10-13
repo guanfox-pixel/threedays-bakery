@@ -60,7 +60,7 @@ export default function HomePage() {
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [pickupDate, setPickupDate] = useState('');
   const [pickupTime, setPickupTime] = useState('14:00');
-  const [isDateTimeLocked, setIsDateTimeLocked] = useState(false); // 🌟 判斷是否被取貨點勾稽鎖定
+  const [isDateTimeLocked, setIsDateTimeLocked] = useState(false);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -138,7 +138,7 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  // 🌟 取貨方式改變時，自動勾稽並帶入／鎖定日期與時間
+  // 🌟 自動勾稽並解析時間區間
   const handlePickupTypeChange = (selectedName: string) => {
     setPickupType(selectedName);
     setDateError('');
@@ -146,17 +146,22 @@ export default function HomePage() {
     const matchedLoc = pickupLocations.find((loc) => loc.name === selectedName);
 
     if (matchedLoc && matchedLoc.pickup_time_slots) {
-      // 假設格式為 "YYYY-MM-DD HH:mm" 或包含日期與時間
-      const parts = matchedLoc.pickup_time_slots.trim().split(' ');
-      if (parts.length >= 2) {
-        setPickupDate(parts[0]);
-        setPickupTime(parts[1]);
-        setIsDateTimeLocked(true); // 自動鎖定欄位
-        return;
+      const timeSlots = matchedLoc.pickup_time_slots.trim();
+      const spaceIdx = timeSlots.indexOf(' ');
+
+      if (spaceIdx !== -1) {
+        const datePart = timeSlots.substring(0, spaceIdx);
+        const timePart = timeSlots.substring(spaceIdx + 1);
+        setPickupDate(datePart);
+        setPickupTime(timePart);
+      } else {
+        setPickupTime(timeSlots);
       }
+
+      setIsDateTimeLocked(true);
+      return;
     }
 
-    // 若不是自訂特規地點或無設定完整日期時間，解除鎖定
     setIsDateTimeLocked(false);
   };
 
@@ -695,7 +700,7 @@ export default function HomePage() {
                     min={minDate}
                     value={pickupDate}
                     onChange={handleDateChange}
-                    disabled={isDateTimeLocked} // 🌟 被取貨點鎖定時不可更改
+                    disabled={isDateTimeLocked}
                     className={`w-full p-2 border rounded-lg text-xs sm:text-sm ${
                       isDateTimeLocked
                         ? 'bg-stone-100 text-stone-600 font-bold cursor-not-allowed border-amber-300'
@@ -714,32 +719,38 @@ export default function HomePage() {
 
                 <div>
                   <label className="block text-xs font-medium text-stone-600 mb-1">
-                    {pickupType === '宅配快遞' ? '希望送達時間 *' : '取貨時間 *'}
+                    {pickupType === '宅配快遞' ? '希望送達時間 *' : '取貨時間區間 *'}
                     {isDateTimeLocked && <span className="text-amber-800 text-[10px] ml-1 font-bold">(固定)</span>}
                   </label>
-                  <select
-                    value={pickupTime}
-                    onChange={(e) => setPickupTime(e.target.value)}
-                    disabled={isDateTimeLocked} // 🌟 被取貨點鎖定時不可更改
-                    className={`w-full p-2 border rounded-lg text-xs sm:text-sm ${
-                      isDateTimeLocked
-                        ? 'bg-stone-100 text-stone-600 font-bold cursor-not-allowed border-amber-300'
-                        : 'border-stone-300 bg-white'
-                    }`}
-                    required
-                  >
-                    <option value="14:00">14:00</option>
-                    <option value="15:00">15:00</option>
-                    <option value="16:00">16:00</option>
-                    <option value="17:00">17:00</option>
-                    <option value="18:00">18:00</option>
-                    <option value="19:00">19:00</option>
-                    <option value="20:00">20:00</option>
-                    <option value="21:00">21:00</option>
-                    <option value="22:00">22:00</option>
-                    <option value="23:00">23:00</option>
-                    <option value="00:00">00:00</option>
-                  </select>
+
+                  {/* 🌟 若被地點勾稽鎖定，顯示自動帶入的區間文字；否則呈現時段選單 */}
+                  {isDateTimeLocked ? (
+                    <input
+                      type="text"
+                      value={pickupTime}
+                      disabled
+                      className="w-full p-2 border border-amber-300 rounded-lg text-xs sm:text-sm bg-stone-100 text-stone-600 font-bold cursor-not-allowed"
+                    />
+                  ) : (
+                    <select
+                      value={pickupTime}
+                      onChange={(e) => setPickupTime(e.target.value)}
+                      className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
+                      required
+                    >
+                      <option value="14:00">14:00</option>
+                      <option value="15:00">15:00</option>
+                      <option value="16:00">16:00</option>
+                      <option value="17:00">17:00</option>
+                      <option value="18:00">18:00</option>
+                      <option value="19:00">19:00</option>
+                      <option value="20:00">20:00</option>
+                      <option value="21:00">21:00</option>
+                      <option value="22:00">22:00</option>
+                      <option value="23:00">23:00</option>
+                      <option value="00:00">00:00</option>
+                    </select>
+                  )}
                 </div>
               </div>
 
