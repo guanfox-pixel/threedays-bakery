@@ -846,4 +846,303 @@ export default function AdminPage() {
 
                         <div className="flex flex-col items-end space-y-2">
                           <span
-                            className={`text-xs px-3 py
+                            className={`text-xs px-3 py-1 rounded-full font-bold ${
+                              isConfirmed
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800 animate-pulse'
+                            }`}
+                          >
+                            狀態：{isConfirmed ? '✅ 已確認訂單' : '⏳ 待處理'}
+                          </span>
+
+                          <div className="flex items-center space-x-2">
+                            {isConfirmed ? (
+                              <button
+                                onClick={() => handleUpdateOrderStatus(order.id, 'pending')}
+                                className="text-xs text-stone-500 underline hover:text-stone-800"
+                              >
+                                標記為待處理
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleUpdateOrderStatus(order.id, '已確認訂單')}
+                                className="bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-800 transition shadow-sm"
+                              >
+                                改為已確認訂單
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => handleToggleTrash(order.id, true)}
+                              className="bg-stone-200 text-stone-700 text-xs px-2.5 py-1.5 rounded-lg font-bold hover:bg-rose-100 hover:text-rose-800 transition"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 🌟 頁籤 3：取貨門市與日期時間設定 */}
+        {activeTab === 'locations' && (
+          <div className="space-y-6">
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+              <h2 className="text-xl font-bold text-amber-950 mb-4">📍 新增自訂取貨門市 / 地點</h2>
+              <form onSubmit={handleAddLocation} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">門市/地點名稱 *</label>
+                    <input
+                      type="text"
+                      value={locName}
+                      onChange={(e) => setLocName(e.target.value)}
+                      placeholder="例如：自取 (站前分店)"
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">可取貨日期與時間說明</label>
+                    <input
+                      type="text"
+                      value={locTimeSlots}
+                      onChange={(e) => setLocTimeSlots(e.target.value)}
+                      placeholder="例如：2026/10/25 14:00-20:00 或 每週二至六 14:00-18:00"
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">門市地址</label>
+                  <input
+                    type="text"
+                    value={locAddress}
+                    onChange={(e) => setLocAddress(e.target.value)}
+                    placeholder="請輸入詳細門市地址..."
+                    className="w-full p-2.5 border border-stone-300 rounded-lg text-sm"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold hover:bg-amber-900 transition"
+                >
+                  ➕ 確認新增取貨地點
+                </button>
+              </form>
+            </section>
+
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+              <h2 className="text-xl font-bold text-amber-950 mb-4">📍 已建立取貨地點清單</h2>
+              {locations.length === 0 ? (
+                <p className="text-stone-400 text-sm py-4">目前無新增任何自訂地點。</p>
+              ) : (
+                <div className="space-y-3">
+                  {locations.map((loc) => (
+                    <div
+                      key={loc.id}
+                      className="p-4 bg-stone-50 rounded-xl border border-stone-200 flex justify-between items-center"
+                    >
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-bold text-amber-950 text-base">{loc.name}</h3>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                              loc.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                            }`}
+                          >
+                            {loc.is_active ? '🟢 啟用中' : '🔴 已停用'}
+                          </span>
+                        </div>
+                        {loc.address && <p className="text-xs text-stone-600 mt-1">📍 地址：{loc.address}</p>}
+                        {loc.pickup_time_slots && (
+                          <p className="text-xs text-amber-900 font-semibold mt-0.5">
+                            📅 可取貨日期與時段：{loc.pickup_time_slots}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLocationActive(loc.id, loc.is_active)}
+                          className={`px-3 py-1.5 rounded-lg font-bold text-xs transition ${
+                            loc.is_active
+                              ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                              : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          }`}
+                        >
+                          {loc.is_active ? '停用' : '啟用'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteLocation(loc.id, loc.name)}
+                          className="bg-stone-200 hover:bg-rose-100 hover:text-rose-800 text-stone-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {activeTab === 'trash' && (
+          <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-rose-900">🗑️ 資源回收垃圾桶</h2>
+              {trashedOrders.length > 0 && (
+                <button
+                  onClick={handleClearAllTrash}
+                  className="bg-rose-800 text-white text-xs px-4 py-2 rounded-xl font-bold hover:bg-rose-900 transition shadow-sm"
+                >
+                  💥 一鍵刪除全部資料
+                </button>
+              )}
+            </div>
+
+            {loading ? (
+              <p className="text-stone-400">載入垃圾桶資料中...</p>
+            ) : trashedOrders.length === 0 ? (
+              <p className="text-stone-400 py-6 text-center">垃圾桶內空空如也！</p>
+            ) : (
+              <div className="space-y-4">
+                {trashedOrders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="p-5 rounded-xl border border-rose-100 bg-rose-50/50 flex flex-col md:flex-row justify-between gap-4"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-3">
+                        <span className="font-bold text-stone-800">
+                          {order.customer_name}
+                        </span>
+                        <span className="text-stone-600 text-sm">📞 {order.customer_phone}</span>
+                      </div>
+                      <p className="text-xs text-amber-900 font-bold bg-amber-100/80 p-1.5 rounded inline-block">
+                        ⏰ 預約日期與時間：{order.pickup_date}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-4">
+                      <span className="text-lg font-bold text-stone-700">${order.total_amount} 元</span>
+                      <button
+                        onClick={() => handleToggleTrash(order.id, false)}
+                        className="bg-stone-800 text-white text-xs px-3 py-2 rounded-lg font-bold hover:bg-stone-900 transition"
+                      >
+                        ↩️ 還原訂單
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {editingProduct && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white p-6 rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-stone-200">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-bold text-amber-950">✏️ 編輯麵包商品 (ID: {editingProduct.id})</h3>
+                <button
+                  onClick={() => setEditingProduct(null)}
+                  className="text-stone-400 hover:text-stone-600 font-bold text-lg"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleUpdateProduct} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">麵包名稱</label>
+                  <input
+                    type="text"
+                    value={editingProduct.name}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">商品類別</label>
+                  <input
+                    type="text"
+                    value={editingProduct.category || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">商品描述</label>
+                  <textarea
+                    value={editingProduct.description || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, description: e.target.value })}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-sm h-20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">價格 (NTD)</label>
+                  <input
+                    type="number"
+                    value={editingProduct.price}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, price: Number(e.target.value) })}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-sm"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">更換照片</label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, true)}
+                    disabled={editUploadingImage}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-xs bg-stone-50"
+                  />
+                  {editUploadingImage && <p className="text-xs text-amber-800 mt-1 animate-pulse">新圖片上傳中...</p>}
+                  {editingProduct.image_url && (
+                    <img src={editingProduct.image_url} alt="目前照片" className="w-20 h-20 object-cover rounded-lg border mt-2" />
+                  )}
+                </div>
+
+                <div className="flex space-x-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingProduct(null)}
+                    className="w-1/2 bg-stone-100 text-stone-700 py-2.5 rounded-lg font-bold text-sm hover:bg-stone-200"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editUploadingImage}
+                    className="w-1/2 bg-amber-800 text-white py-2.5 rounded-lg font-bold text-sm hover:bg-amber-900 transition"
+                  >
+                    儲存修改
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </main>
+  );
+}
