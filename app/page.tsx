@@ -290,7 +290,6 @@ export default function HomePage() {
 
     setSubmitting(true);
 
-    // 🌟 組合完整日期與時間 (例如: 2026-10-15 14:00)
     const selectedTime = pickupTime || '14:00';
     const fullPickupDateTime = `${pickupDate.trim()} ${selectedTime.trim()}`;
 
@@ -633,9 +632,10 @@ export default function HomePage() {
                 >
                   <option value="到店自取 (復興店)">到店自取 (復興店)</option>
                   
+                  {/* 🌟 選項名稱自動拼接「日期與時間說明」 */}
                   {pickupLocations.map((loc) => (
                     <option key={loc.id} value={loc.name}>
-                      {loc.name}
+                      {loc.name}{loc.pickup_time_slots ? ` — ${loc.pickup_time_slots}` : ''}
                     </option>
                   ))}
 
@@ -870,7 +870,6 @@ export default function HomePage() {
                           </span>
                         </div>
 
-                        {/* 🌟 完整顯示 日期 + 時間 */}
                         <p className="text-stone-700">
                           <strong>⏰ 預約日期與時間：</strong>
                           <span className="font-bold text-amber-950">{order.pickup_date}</span>
