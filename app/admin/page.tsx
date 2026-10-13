@@ -34,15 +34,30 @@ interface CategorySetting {
   category_order?: number;
 }
 
+interface PickupLocation {
+  id: number;
+  name: string;
+  address: string;
+  pickup_time_slots: string;
+  is_active: boolean;
+  display_order?: number;
+}
+
 export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [passwordInput, setPasswordInput] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'trash'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'locations' | 'trash'>('products');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [categorySettings, setCategorySettings] = useState<CategorySetting[]>([]);
+  const [locations, setLocations] = useState<PickupLocation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // 新增門市 State
+  const [locName, setLocName] = useState('');
+  const [locAddress, setLocAddress] = useState('');
+  const [locTimeSlots, setLocTimeSlots] = useState('14:00-20:00');
 
   // 新增商品 State
   const [name, setName] = useState<string>('');
@@ -83,10 +98,11 @@ export default function AdminPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [prodRes, orderRes, catRes] = await Promise.all([
+      const [prodRes, orderRes, catRes, locRes] = await Promise.all([
         supabase.from('products').select('*'),
         supabase.from('orders').select('*').order('created_at', { ascending: false }),
         supabase.from('category_settings').select('*'),
+        supabase.from('pickup_locations').select('*').order('id', { ascending: true }),
       ]);
 
       if (prodRes.data) {
@@ -96,9 +112,8 @@ export default function AdminPage() {
         }
       }
       if (orderRes.data) setOrders(orderRes.data);
-      if (catRes.data) {
-        setCategorySettings(catRes.data);
-      }
+      if (catRes.data) setCategorySettings(catRes.data);
+      if (locRes.data) setLocations(locRes.data);
     } catch (err) {
       console.error('抓取資料失敗:', err);
     } finally {
@@ -112,7 +127,65 @@ export default function AdminPage() {
     }
   }, [isAuthenticated]);
 
-  // 🌟 只保留「吐司類」與「甜點類」作為靜態預設，移除「可頌類」與「歐包類」
+  // 新增取貨點
+  const handleAddLocation = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locName.trim()) return alert('請填寫門市/取貨點名稱！');
+
+    try {
+      const { error } = await supabase.from('pickup_locations').insert([
+        {
+          name: locName.trim(),
+          address: locAddress.trim(),
+          pickup_time_slots: locTimeSlots.trim(),
+          is_active: true,
+        },
+      ]);
+
+      if (error) {
+        alert(`❌ 新增地點失敗：${error.message}`);
+      } else {
+        alert('🎉 成功新增自訂取貨地點！');
+        setLocName('');
+        setLocAddress('');
+        setLocTimeSlots('14:00-20:00');
+        fetchData();
+      }
+    } catch (err: any) {
+      alert(`例外錯誤：${err.message}`);
+    }
+  };
+
+  // 切換門市啟用狀態
+  const handleToggleLocationActive = async (id: number, currentActive: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('pickup_locations')
+        .update({ is_active: !currentActive })
+        .eq('id', id);
+
+      if (error) alert(`❌ 更新失敗：${error.message}`);
+      else fetchData();
+    } catch (err: any) {
+      alert(`例外錯誤：${err.message}`);
+    }
+  };
+
+  // 刪除門市
+  const handleDeleteLocation = async (id: number, name: string) => {
+    if (!confirm(`確定要刪除【${name}】取貨地點嗎？`)) return;
+    try {
+      const { error } = await supabase.from('pickup_locations').delete().eq('id', id);
+      if (error) alert(`❌ 刪除失敗：${error.message}`);
+      else {
+        alert('🗑️ 已成功刪除地點！');
+        fetchData();
+      }
+    } catch (err: any) {
+      alert(`例外錯誤：${err.message}`);
+    }
+  };
+
   const existingCategories = Array.from(
     new Set(products.map((p) => p.category).filter((c): c is string => Boolean(c) && c.trim() !== ''))
   );
@@ -134,7 +207,6 @@ export default function AdminPage() {
     return orderA - orderB;
   });
 
-  // 類別順序調整（左移 / 右移）
   const handleMoveCategory = async (catName: string, direction: 'left' | 'right') => {
     const index = sortedCategories.indexOf(catName);
     const targetIndex = direction === 'left' ? index - 1 : index + 1;
@@ -152,17 +224,13 @@ export default function AdminPage() {
 
     try {
       const { error } = await supabase.from('category_settings').upsert(updates);
-      if (error) {
-        alert(`❌ 類別順序更新失敗：${error.message}`);
-      } else {
-        fetchData();
-      }
+      if (error) alert(`❌ 類別順序更新失敗：${error.message}`);
+      else fetchData();
     } catch (err: any) {
       alert(`更新例外：${err.message}`);
     }
   };
 
-  // 切換商品上下架狀態
   const handleToggleProductActive = async (productId: number, currentIsActive: boolean) => {
     const targetState = !currentIsActive;
     try {
@@ -178,8 +246,6 @@ export default function AdminPage() {
       if (error) {
         alert(`❌ 更新狀態失敗：${error.message}`);
         fetchData();
-      } else {
-        alert(targetState ? '🟢 已成功將商品設為【上架】！' : '🔴 已成功將商品設為【下架】！');
       }
     } catch (err: any) {
       alert(`例外錯誤：${err.message}`);
@@ -187,7 +253,6 @@ export default function AdminPage() {
     }
   };
 
-  // 類別內部商品順序調整（上移 / 下移）
   const handleMoveProductInCategory = async (category: string, productIndexInCat: number, direction: 'up' | 'down') => {
     const catProducts = products
       .filter((p) => (p.category || '未分類') === category)
@@ -210,11 +275,8 @@ export default function AdminPage() {
 
     try {
       const { error } = await supabase.from('products').upsert(updates);
-      if (error) {
-        alert(`❌ 商品順序更新失敗：${error.message}`);
-      } else {
-        fetchData();
-      }
+      if (error) alert(`❌ 商品順序更新失敗：${error.message}`);
+      else fetchData();
     } catch (err: any) {
       alert(`更新例外：${err.message}`);
     }
@@ -255,8 +317,6 @@ export default function AdminPage() {
       if (error) {
         alert(`❌ 操作失敗：${error.message}`);
         fetchData();
-      } else {
-        alert(targetIsDeleted ? '🗑️ 已將訂單移至垃圾桶' : '🎉 已成功還原訂單！');
       }
     } catch (err: any) {
       alert(`例外錯誤：${err.message}`);
@@ -266,22 +326,16 @@ export default function AdminPage() {
 
   const handleClearAllTrash = async () => {
     const trashedOrders = orders.filter((o) => o.is_deleted);
-    if (trashedOrders.length === 0) {
-      alert('垃圾桶目前沒有任何資料！');
-      return;
-    }
+    if (trashedOrders.length === 0) return alert('垃圾桶目前沒有任何資料！');
 
-    if (!confirm(`⚠️ 確定要永久清空垃圾桶中的 ${trashedOrders.length} 筆訂單嗎？`)) {
-      return;
-    }
+    if (!confirm(`⚠️ 確定要永久清空垃圾桶中的 ${trashedOrders.length} 筆訂單嗎？`)) return;
 
     try {
       const trashedIds = trashedOrders.map((o) => o.id);
       const { error } = await supabase.from('orders').delete().in('id', trashedIds);
 
-      if (error) {
-        alert(`❌ 清空失敗：${error.message}`);
-      } else {
+      if (error) alert(`❌ 清空失敗：${error.message}`);
+      else {
         alert('💥 垃圾桶已全部清空！');
         fetchData();
       }
@@ -294,10 +348,7 @@ export default function AdminPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 5 * 1024 * 1024) {
-      alert('圖片大小不能超過 5MB！');
-      return;
-    }
+    if (file.size > 5 * 1024 * 1024) return alert('圖片大小不能超過 5MB！');
 
     if (isEdit) setEditUploadingImage(true);
     else setUploadingImage(true);
@@ -310,10 +361,7 @@ export default function AdminPage() {
         .from('product-images')
         .upload(fileName, file, { cacheControl: '3600', upsert: true });
 
-      if (uploadError) {
-        alert(`❌ 圖片上傳失敗：${uploadError.message}`);
-        return;
-      }
+      if (uploadError) return alert(`❌ 圖片上傳失敗：${uploadError.message}`);
 
       const { data: urlData } = supabase.storage
         .from('product-images')
@@ -335,10 +383,7 @@ export default function AdminPage() {
 
   const handleAddProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !price) {
-      alert('請填寫完整商品名稱與價格！');
-      return;
-    }
+    if (!name.trim() || !price) return alert('請填寫完整商品名稱與價格！');
 
     const finalCategory =
       selectedCategory === '➕ 新增自訂類別'
@@ -361,9 +406,8 @@ export default function AdminPage() {
         },
       ]);
 
-      if (error) {
-        alert(`❌ 上架失敗：${error.message}`);
-      } else {
+      if (error) alert(`❌ 上架失敗：${error.message}`);
+      else {
         alert(`🎉 成功新增麵包商品至【${finalCategory}】！`);
         setName('');
         setDesc('');
@@ -395,9 +439,8 @@ export default function AdminPage() {
         })
         .eq('id', editingProduct.id);
 
-      if (error) {
-        alert(`❌ 更新失敗：${error.message}`);
-      } else {
+      if (error) alert(`❌ 更新失敗：${error.message}`);
+      else {
         alert('🎉 成功更新麵包商品資訊！');
         setEditingProduct(null);
         fetchData();
@@ -451,10 +494,10 @@ export default function AdminPage() {
         </div>
 
         {/* 標籤頁切換按鈕 */}
-        <div className="flex space-x-3 mb-6 border-b border-stone-200 pb-4">
+        <div className="flex space-x-3 mb-6 border-b border-stone-200 pb-4 overflow-x-auto">
           <button
             onClick={() => setActiveTab('products')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition ${
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition whitespace-nowrap ${
               activeTab === 'products'
                 ? 'bg-amber-800 text-white shadow-sm'
                 : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
@@ -464,7 +507,7 @@ export default function AdminPage() {
           </button>
           <button
             onClick={() => setActiveTab('orders')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition ${
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition whitespace-nowrap ${
               activeTab === 'orders'
                 ? 'bg-amber-800 text-white shadow-sm'
                 : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
@@ -473,8 +516,18 @@ export default function AdminPage() {
             📋 客戶預約單 ({activeOrders.length})
           </button>
           <button
+            onClick={() => setActiveTab('locations')}
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition whitespace-nowrap ${
+              activeTab === 'locations'
+                ? 'bg-amber-800 text-white shadow-sm'
+                : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'
+            }`}
+          >
+            📍 取貨門市設定 ({locations.length})
+          </button>
+          <button
             onClick={() => setActiveTab('trash')}
-            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition ${
+            className={`px-4 py-2.5 rounded-xl font-bold text-sm transition whitespace-nowrap ${
               activeTab === 'trash'
                 ? 'bg-rose-800 text-white shadow-sm'
                 : 'bg-white text-rose-700 border border-rose-200 hover:bg-rose-50'
@@ -487,7 +540,6 @@ export default function AdminPage() {
         {/* 頁籤 1：商品管理 */}
         {activeTab === 'products' && (
           <div className="space-y-10">
-            {/* 類別顯示順序設定區塊 */}
             <section className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-sm">
               <h2 className="text-base font-bold text-amber-950 mb-2 flex items-center">
                 📁 調整類別顯示順序
@@ -509,7 +561,6 @@ export default function AdminPage() {
                         onClick={() => handleMoveCategory(catName, 'left')}
                         disabled={index === 0}
                         className="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 rounded text-stone-700 disabled:opacity-30"
-                        title="向左移"
                       >
                         ⬅️
                       </button>
@@ -518,7 +569,6 @@ export default function AdminPage() {
                         onClick={() => handleMoveCategory(catName, 'right')}
                         disabled={index === sortedCategories.length - 1}
                         className="px-1.5 py-0.5 bg-stone-100 hover:bg-stone-200 rounded text-stone-700 disabled:opacity-30"
-                        title="向右移"
                       >
                         ➡️
                       </button>
@@ -528,7 +578,6 @@ export default function AdminPage() {
               </div>
             </section>
 
-            {/* 新增商品表單 */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-4">➕ 新增麵包品項</h2>
               <form onSubmit={handleAddProduct} className="space-y-4">
@@ -622,7 +671,6 @@ export default function AdminPage() {
               </form>
             </section>
 
-            {/* 已建立商品清單 (依類別分區) */}
             <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
               <h2 className="text-xl font-bold text-amber-900 mb-6">📋 已建立商品清單 (依類別分區)</h2>
               {loading ? (
@@ -656,7 +704,6 @@ export default function AdminPage() {
                                       onClick={() => handleMoveProductInCategory(catName, index, 'up')}
                                       disabled={index === 0}
                                       className="p-1 text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-700 rounded disabled:opacity-30 font-bold"
-                                      title="類別內上移"
                                     >
                                       ⬆️
                                     </button>
@@ -665,7 +712,6 @@ export default function AdminPage() {
                                       onClick={() => handleMoveProductInCategory(catName, index, 'down')}
                                       disabled={index === catProducts.length - 1}
                                       className="p-1 text-[10px] bg-stone-100 hover:bg-stone-200 text-stone-700 rounded disabled:opacity-30 font-bold"
-                                      title="類別內下移"
                                     >
                                       ⬇️
                                     </button>
@@ -834,7 +880,6 @@ export default function AdminPage() {
                             <button
                               onClick={() => handleToggleTrash(order.id, true)}
                               className="bg-stone-200 text-stone-700 text-xs px-2.5 py-1.5 rounded-lg font-bold hover:bg-rose-100 hover:text-rose-800 transition"
-                              title="移至垃圾桶"
                             >
                               🗑️
                             </button>
@@ -849,7 +894,112 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* 頁籤 3：垃圾桶 */}
+        {/* 🌟 頁籤 3：取貨門市設定 */}
+        {activeTab === 'locations' && (
+          <div className="space-y-6">
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+              <h2 className="text-xl font-bold text-amber-950 mb-4">📍 新增自訂取貨門市 / 地點</h2>
+              <form onSubmit={handleAddLocation} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">門市/地點名稱 *</label>
+                    <input
+                      type="text"
+                      value={locName}
+                      onChange={(e) => setLocName(e.target.value)}
+                      placeholder="例如：自取 (站前分店)"
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">可取貨時段說明</label>
+                    <input
+                      type="text"
+                      value={locTimeSlots}
+                      onChange={(e) => setLocTimeSlots(e.target.value)}
+                      placeholder="例如：14:00-20:00"
+                      className="w-full p-2.5 border border-stone-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">門市地址</label>
+                  <input
+                    type="text"
+                    value={locAddress}
+                    onChange={(e) => setLocAddress(e.target.value)}
+                    placeholder="請輸入詳細地址..."
+                    className="w-full p-2.5 border border-stone-300 rounded-lg text-sm"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold hover:bg-amber-900 transition"
+                >
+                  ➕ 確認新增取貨地點
+                </button>
+              </form>
+            </section>
+
+            <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
+              <h2 className="text-xl font-bold text-amber-950 mb-4">📍 已建立取貨地點清單</h2>
+              {locations.length === 0 ? (
+                <p className="text-stone-400 text-sm py-4">目前無新增任何自訂地點。</p>
+              ) : (
+                <div className="space-y-3">
+                  {locations.map((loc) => (
+                    <div
+                      key={loc.id}
+                      className="p-4 bg-stone-50 rounded-xl border border-stone-200 flex justify-between items-center"
+                    >
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-bold text-amber-950 text-base">{loc.name}</h3>
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded font-bold ${
+                              loc.is_active ? 'bg-emerald-100 text-emerald-800' : 'bg-stone-200 text-stone-600'
+                            }`}
+                          >
+                            {loc.is_active ? '🟢 啟用中' : '🔴 已停用'}
+                          </span>
+                        </div>
+                        {loc.address && <p className="text-xs text-stone-600 mt-1">地址：{loc.address}</p>}
+                        {loc.pickup_time_slots && <p className="text-xs text-stone-500">時段：{loc.pickup_time_slots}</p>}
+                      </div>
+
+                      <div className="flex items-center space-x-2">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleLocationActive(loc.id, loc.is_active)}
+                          className={`px-3 py-1.5 rounded-lg font-bold text-xs transition ${
+                            loc.is_active
+                              ? 'bg-rose-100 text-rose-800 hover:bg-rose-200'
+                              : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          }`}
+                        >
+                          {loc.is_active ? '停用' : '啟用'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteLocation(loc.id, loc.name)}
+                          className="bg-stone-200 hover:bg-rose-100 hover:text-rose-800 text-stone-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+
+        {/* 頁籤 4：垃圾桶 */}
         {activeTab === 'trash' && (
           <section className="bg-white p-6 rounded-2xl shadow-sm border border-stone-200">
             <div className="flex justify-between items-center mb-6">

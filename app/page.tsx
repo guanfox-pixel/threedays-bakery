@@ -36,9 +36,18 @@ interface CategorySetting {
   category_order?: number;
 }
 
+interface PickupLocation {
+  id: number;
+  name: string;
+  address: string;
+  pickup_time_slots: string;
+  is_active: boolean;
+}
+
 export default function HomePage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categorySettings, setCategorySettings] = useState<CategorySetting[]>([]);
+  const [pickupLocations, setPickupLocations] = useState<PickupLocation[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
 
@@ -60,6 +69,11 @@ export default function HomePage() {
   const [lookupPhone, setLookupPhone] = useState('');
   const [lookupResults, setLookupResults] = useState<LookedUpOrder[] | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
+
+  // 預約成功彈窗 State
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastOrderAmount, setLastOrderAmount] = useState<number>(0);
+  const [copied, setCopied] = useState(false);
 
   const [minDate, setMinDate] = useState('');
 
@@ -94,13 +108,14 @@ export default function HomePage() {
     setMinDate(`${yyyy}-${mm}-${dd}`);
   }, []);
 
-  const fetchProducts = async () => {
+  const fetchData = async () => {
     setLoading(true);
     setErrorMsg('');
     try {
-      const [prodRes, catRes] = await Promise.all([
+      const [prodRes, catRes, locRes] = await Promise.all([
         supabase.from('products').select('*').eq('is_active', true),
         supabase.from('category_settings').select('*'),
+        supabase.from('pickup_locations').select('*').eq('is_active', true),
       ]);
 
       if (prodRes.error) {
@@ -109,9 +124,8 @@ export default function HomePage() {
         setProducts(prodRes.data);
       }
 
-      if (catRes.data) {
-        setCategorySettings(catRes.data);
-      }
+      if (catRes.data) setCategorySettings(catRes.data);
+      if (locRes.data) setPickupLocations(locRes.data);
     } catch (err: any) {
       setErrorMsg(`連線例外：${err.message}`);
     } finally {
@@ -120,15 +134,12 @@ export default function HomePage() {
   };
 
   useEffect(() => {
-    fetchProducts();
+    fetchData();
   }, []);
 
   const handleLookupOrders = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!lookupPhone.trim()) {
-      alert('請輸入電話號碼！');
-      return;
-    }
+    if (!lookupPhone.trim()) return alert('請輸入電話號碼！');
 
     setLookupLoading(true);
     try {
@@ -139,11 +150,8 @@ export default function HomePage() {
         .or('is_deleted.is.null,is_deleted.eq.false')
         .order('id', { ascending: false });
 
-      if (error) {
-        alert(`查詢失敗：${error.message}`);
-      } else {
-        setLookupResults(data || []);
-      }
+      if (error) alert(`查詢失敗：${error.message}`);
+      else setLookupResults(data || []);
     } catch (err: any) {
       alert(`查詢發生例外：${err.message}`);
     } finally {
@@ -206,26 +214,20 @@ export default function HomePage() {
 
   const categorizedProducts = products.reduce<{ [category: string]: Product[] }>((acc, product) => {
     const cat = product.category || '未分類';
-    if (!acc[cat]) {
-      acc[cat] = [];
-    }
+    if (!acc[cat]) acc[cat] = [];
     acc[cat].push(product);
     return acc;
   }, {});
 
-  // 1. 商品於類別內依 display_order 排序
   Object.keys(categorizedProducts).forEach((cat) => {
     categorizedProducts[cat].sort((a, b) => {
       const orderA = a.display_order ?? 999;
       const orderB = b.display_order ?? 999;
-      if (orderA !== orderB) {
-        return orderA - orderB;
-      }
+      if (orderA !== orderB) return orderA - orderB;
       return a.id - b.id;
     });
   });
 
-  // 2. 類別標題依 category_order 排序
   const categoryOrderMap: { [cat: string]: number } = {};
   categorySettings.forEach((c) => {
     if (c.category_order !== undefined) {
@@ -266,34 +268,24 @@ export default function HomePage() {
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (cartItems.length === 0) {
-      alert('請至少選擇一項麵包商品！');
-      return;
-    }
+    if (cartItems.length === 0) return alert('請至少選擇一項麵包商品！');
 
     if (productSubtotal < 200) {
-      alert('⚠️ 預訂金額未滿 200 元，無法送出預約！\n請直接至現場選購（12:00–13:00品項最齊全），或增加訂購數量。');
-      return;
+      return alert('⚠️ 預訂金額未滿 200 元，無法送出預約！\n請直接至現場選購（12:00–13:00品項最齊全），或增加訂購數量。');
     }
 
     if (!customerName.trim() || !customerPhone.trim() || !pickupDate) {
-      alert('請完整填寫姓名、電話與有效的預約取貨日期！');
-      return;
+      return alert('請完整填寫姓名、電話與有效的預約取貨日期！');
     }
 
     if (pickupType === '宅配快遞' && !deliveryAddress.trim()) {
-      alert('選擇宅配快遞時，請務必填寫宅配收件地址！');
-      return;
+      return alert('選擇宅配快遞時，請務必填寫宅配收件地址！');
     }
 
-    if (isClosedDay(pickupDate)) {
-      alert('⚠️ 週日與週一為公休日，無法安排取貨，請選擇其他日期！');
-      return;
-    }
+    if (isClosedDay(pickupDate)) return alert('⚠️ 週日與週一為公休日，無法安排取貨，請選擇其他日期！');
 
     if (minDate && pickupDate < minDate) {
-      alert(`⚠️ 預約失敗：取貨日需提前至少 2 天預訂！\n最早可預約日期為：${minDate}`);
-      return;
+      return alert(`⚠️ 預約失敗：取貨日需提前至少 2 天預訂！\n最早可預約日期為：${minDate}`);
     }
 
     setSubmitting(true);
@@ -343,10 +335,9 @@ export default function HomePage() {
           }),
         }).catch((err) => console.error('推播失敗:', err));
 
-        // 1. 先顯示原本的預約成功彈窗（使用者按下「確定」前程式會停在此處）
-        alert('🎉 預約單已成功送出！\n\n請點擊頁面上的【💬 聯繫 LINE 官方客服】按鈕，核對訂單並取得匯款帳號，完成付款後訂單才正式成立喔！');
+        setLastOrderAmount(totalPrice);
+        setShowSuccessModal(true);
 
-        // 2. 清空表單與購物車
         setCart({});
         setCustomerName('');
         setCustomerPhone('');
@@ -355,16 +346,19 @@ export default function HomePage() {
         setPickupTime('14:00');
         setNote('');
         setDateError('');
-        fetchProducts();
-
-        // 3. 當使用者在 alert 點擊「確定」後，自動轉跳至 LINE 官方客服對談頁面
-        window.location.href = 'https://line.me/R/ti/p/@399mteem';
+        fetchData();
       }
     } catch (err: any) {
       alert(`系統例外錯誤: ${err.message}`);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleCopyAmount = () => {
+    navigator.clipboard.writeText(lastOrderAmount.toString());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -409,7 +403,6 @@ export default function HomePage() {
           {!loading &&
             sortedCategoryNames.map((categoryName) => (
               <div key={categoryName} className="space-y-3">
-                {/* 🌟 類別標題：純文字顯示 */}
                 <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-300/80 pb-2 flex items-center bg-white px-3 py-1.5 rounded-lg border border-stone-200">
                   <span>{categoryName}</span>
                 </h2>
@@ -557,9 +550,6 @@ export default function HomePage() {
               rel="noopener noreferrer"
               className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm transition transform active:scale-95"
             >
-              <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                <path d="M24 10.304c0-5.369-5.383-9.738-12-9.738-6.616 0-12 4.369-12 9.738 0 4.814 4.269 8.846 10.036 9.608.391.084.922.258 1.057.592.121.303.079.778.039 1.085l-.171 1.027c-.053.303-.242 1.186.521.648.763-.537 4.113-2.422 5.613-4.144 1.258-1.42 1.885-2.88 1.885-4.316zm-16.892 2.372h-2.001v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h2.515c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.016 0h-1.028v-3.774c0-.284-.23-.514-.514-.514s-.514.23-.514.514v4.288c0 .284.23.514.514.514h1.542c.284 0 .514-.23.514-.514s-.23-.514-.514-.514zm3.83 0h-1.398l-1.528-2.222v2.222c0 .284-.23-.514-.514-.514s-.23-.514-.514-.514v-4.288c0-.284.23-.514.514-.514h1.398l1.528 2.222v-2.222c0-.284.23-.514.514-.514s.514.23.514.514v4.288c0 .284-.23-.514-.514.514zm4.116-2.746h-1.543v.715h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-1.543v.988h1.543c.284 0 .514.23.514.514s-.23.514-.514.514h-2.057c-.284 0-.514-.23-.514-.514v-4.288c0-.284.23-.514.514-.514h2.057c.284 0 .514.23.514.514s-.23.514-.514.514z" />
-              </svg>
               <span>點擊加入 LINE 官方客服對談</span>
             </a>
           </div>
@@ -633,13 +623,21 @@ export default function HomePage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">取貨方式</label>
+                <label className="block text-xs font-medium text-stone-600 mb-1">取貨方式 *</label>
                 <select
                   value={pickupType}
                   onChange={(e) => setPickupType(e.target.value)}
                   className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
                 >
                   <option value="到店自取 (復興店)">到店自取 (復興店)</option>
+                  
+                  {/* 🌟 動態渲染後台新增的門市 */}
+                  {pickupLocations.map((loc) => (
+                    <option key={loc.id} value={loc.name}>
+                      {loc.name}
+                    </option>
+                  ))}
+
                   <option value="宅配快遞">宅配快遞</option>
                 </select>
               </div>
@@ -654,7 +652,7 @@ export default function HomePage() {
                     value={deliveryAddress}
                     onChange={(e) => setDeliveryAddress(e.target.value)}
                     placeholder="請輸入完整的縣市、區域與街道門牌"
-                    className="w-full p-2 border border-amber-400 rounded-lg text-xs sm:text-sm bg-amber-50/50 focus:bg-white focus:outline-hidden"
+                    className="w-full p-2 border border-amber-400 rounded-lg text-xs sm:text-sm bg-amber-50/50 focus:bg-white"
                     required
                   />
                 </div>
@@ -730,6 +728,64 @@ export default function HomePage() {
         </section>
       </div>
 
+      {/* 預約成功彈窗 Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white p-6 rounded-2xl max-w-md w-full shadow-2xl border border-stone-200 text-center">
+            <div className="w-12 h-12 bg-emerald-100 text-emerald-800 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl font-bold">
+              🎉
+            </div>
+            <h3 className="text-xl font-bold text-amber-950 mb-2">預約單已成功送出！</h3>
+            
+            <div className="bg-amber-50 p-3 rounded-xl border border-amber-200 mb-4">
+              <p className="text-xs text-stone-600">本次預約應付總金額：</p>
+              <div className="flex items-center justify-center space-x-2 mt-1">
+                <span className="text-2xl font-extrabold text-amber-950">${lastOrderAmount} 元</span>
+                <button
+                  type="button"
+                  onClick={handleCopyAmount}
+                  className="bg-amber-800 hover:bg-amber-900 text-white text-[11px] font-bold px-2.5 py-1 rounded-lg transition"
+                >
+                  {copied ? '✅ 已複製' : '📋 複製金額'}
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-500 mb-4 leading-relaxed">
+              因靜態商店 QR Code 需手動輸入金額，建議點擊「複製金額」後再前往 LINE Pay 輸入金額完成付款！
+            </p>
+
+            <div className="space-y-3">
+              <a
+                href="https://line.me/R/ti/p/@399mteem"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 shadow-sm transition"
+              >
+                <span>💬 聯繫 LINE 官方客服對話</span>
+              </a>
+
+              <a
+                href="https://line.me/R/ti/p/@399mteem"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 shadow-sm transition"
+              >
+                <span>💳 開啟 LINE Pay 付款 (${lastOrderAmount} 元)</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className="w-full bg-stone-100 hover:bg-stone-200 text-stone-600 py-2 rounded-xl text-xs font-semibold mt-1"
+              >
+                關閉視窗
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 電話查詢預約訂單彈窗 Modal */}
       {showLookupModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
@@ -752,7 +808,7 @@ export default function HomePage() {
                 value={lookupPhone}
                 onChange={(e) => setLookupPhone(e.target.value)}
                 placeholder="請輸入訂購時留的電話號碼"
-                className="flex-1 p-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm bg-white focus:outline-hidden focus:border-amber-700"
+                className="flex-1 p-2.5 border border-stone-300 rounded-xl text-xs sm:text-sm bg-white"
                 required
               />
               <button
