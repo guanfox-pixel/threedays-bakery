@@ -57,7 +57,7 @@ export default function HomePage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [pickupType, setPickupType] = useState('到店自取 (復興店)');
-  const [selectedLocationAddress, setSelectedLocationAddress] = useState<string>(''); // 🌟 儲存目前選取門市的地址
+  const [selectedLocationAddress, setSelectedLocationAddress] = useState<string>('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [pickupDate, setPickupDate] = useState('');
   const [pickupTime, setPickupTime] = useState('14:00');
@@ -71,6 +71,9 @@ export default function HomePage() {
   const [lookupPhone, setLookupPhone] = useState('');
   const [lookupResults, setLookupResults] = useState<LookedUpOrder[] | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
+
+  // 🌟 訂購與配送須知彈窗控制 State
+  const [showNoticeModal, setShowNoticeModal] = useState(false);
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [lastOrderAmount, setLastOrderAmount] = useState<number>(0);
@@ -139,7 +142,6 @@ export default function HomePage() {
     fetchData();
   }, []);
 
-  // 🌟 切換取貨方式時，同步更新「地址」與「勾稽時間區間」
   const handlePickupTypeChange = (selectedName: string) => {
     setPickupType(selectedName);
     setDateError('');
@@ -147,7 +149,6 @@ export default function HomePage() {
     const matchedLoc = pickupLocations.find((loc) => loc.name === selectedName);
 
     if (matchedLoc) {
-      // 即時記錄門市地址
       setSelectedLocationAddress(matchedLoc.address || '');
 
       if (matchedLoc.pickup_time_slots) {
@@ -598,7 +599,17 @@ export default function HomePage() {
           </div>
 
           <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
-            <h2 className="text-lg md:text-xl font-bold text-amber-950 mb-4">🛒 預約結帳單</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-lg md:text-xl font-bold text-amber-950">🛒 預約結帳單</h2>
+              {/* 🌟 訂購與配送須知彈窗觸發連結按鈕 */}
+              <button
+                type="button"
+                onClick={() => setShowNoticeModal(true)}
+                className="text-xs font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200/80 transition flex items-center space-x-1"
+              >
+                <span>📖 訂購與配送須知</span>
+              </button>
+            </div>
 
             {cartItems.length === 0 ? (
               <p className="text-stone-400 text-xs sm:text-sm py-4 text-center">尚未選擇任何麵包品項</p>
@@ -683,7 +694,6 @@ export default function HomePage() {
                   <option value="宅配快遞">宅配快遞</option>
                 </select>
 
-                {/* 🌟 選取自訂門市時，即時於下方顯示門市詳細地址 */}
                 {selectedLocationAddress && (
                   <div className="mt-2 p-2.5 bg-amber-50/80 rounded-lg border border-amber-200 text-xs text-amber-950 font-medium flex items-start space-x-1 animate-fadeIn">
                     <span className="shrink-0">📍</span>
@@ -794,6 +804,124 @@ export default function HomePage() {
           </div>
         </section>
       </div>
+
+      {/* 🌟 訂購與配送須知彈窗 Modal */}
+      {showNoticeModal && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
+          <div className="bg-white p-6 rounded-2xl max-w-xl w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-stone-200">
+            <div className="flex justify-between items-center border-b pb-3 mb-4 sticky top-0 bg-white z-10">
+              <h3 className="font-bold text-amber-950 text-base flex items-center space-x-1.5">
+                <span>📖 訂購與配送須知</span>
+              </h3>
+              <button
+                onClick={() => setShowNoticeModal(false)}
+                className="text-stone-400 hover:text-stone-600 font-bold text-xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-6 text-xs sm:text-sm text-stone-700 leading-relaxed">
+              {/* 區塊 1 */}
+              <section className="space-y-2">
+                <h4 className="font-bold text-amber-950 text-sm border-l-4 border-amber-800 pl-2">
+                  【訂購與配送須知】
+                </h4>
+                <div className="space-y-2 bg-stone-50 p-3 rounded-xl border border-stone-200 text-stone-600">
+                  <p className="font-semibold text-stone-900">一、配送方式與收貨須知</p>
+                  <ul className="list-disc pl-5 space-y-1 text-xs">
+                    <li><strong>宅配訂單：</strong> 全程採冷凍宅配，確保商品品質與風味。</li>
+                    <li><strong>外送訂單：</strong> 採常溫配送，建議收到商品後儘早食用，並依商品保存方式妥善保存。</li>
+                    <li>請務必填寫正確的收件地址及聯絡電話。宅配訂單請確保到貨當日有收件人，或事先確認管理室具備冷凍保存設備，以避免商品失溫。</li>
+                    <li>若因收件人拒收、地址填寫錯誤或無人收貨，導致商品失溫或變質，恕無法提供退款或重新寄送。</li>
+                  </ul>
+                </div>
+              </section>
+
+              {/* 區塊 2 */}
+              <section className="space-y-2">
+                <h4 className="font-bold text-amber-950 text-sm border-l-4 border-rose-800 pl-2">
+                  【退換貨政策】
+                </h4>
+                <div className="space-y-2 bg-rose-50/50 p-3 rounded-xl border border-rose-200 text-stone-600 text-xs">
+                  <p>• 本店販售之菠蘿麵包及奶油等商品，屬於易於腐敗、保存期限較短之食品，依《消費者保護法》第19條及相關規定，排除適用7日解除權之合理例外情事。</p>
+                  <p>• 商品一經出貨，除商品本身瑕疵或配送過程中發生失溫等可歸責於本店或物流之情形外，恕不接受退換貨。</p>
+                  
+                  <div className="bg-white p-2.5 rounded-lg border border-rose-200 space-y-1">
+                    <p className="font-bold text-rose-900">🚨 商品異常處理：</p>
+                    <p>收到商品後請立即開箱確認。若發現因物流配送問題造成奶油融化、商品嚴重壓毀等情形，請於收件後 24 小時內提供以下資料並聯繫客服：</p>
+                    <ol className="list-decimal pl-5 font-medium text-stone-800 space-y-0.5 mt-1">
+                      <li>紙箱外觀及物流託運單照片。</li>
+                      <li>商品外觀照片或影片。</li>
+                    </ol>
+                    <p className="text-[11px] text-stone-500 pt-1">本店確認後將盡速協助處理。</p>
+                  </div>
+                </div>
+              </section>
+
+              {/* 區塊 3 */}
+              <section className="space-y-2">
+                <h4 className="font-bold text-amber-950 text-sm border-l-4 border-amber-800 pl-2">
+                  【美味食用與保存建議】
+                </h4>
+                <p className="text-xs text-stone-500">為了讓每一份商品都能呈現最佳風味，建議依照以下方式保存及加熱。</p>
+
+                <div className="space-y-3 pt-1">
+                  <div className="bg-amber-50/70 p-3 rounded-xl border border-amber-200 space-y-1 text-xs">
+                    <p className="font-bold text-amber-950">一、建議加熱方式</p>
+                    <p>建議使用烤箱、氣炸鍋或平底鍋，使用前請先預熱至 160～180°C，約 3 分鐘。</p>
+                    <div className="bg-white p-2 rounded-lg border border-amber-200/80 mt-1 space-y-0.5">
+                      <p className="font-semibold text-amber-900">🔥 各商品建議回烤時間：</p>
+                      <ul className="pl-3 space-y-0.5 text-stone-600">
+                        <li>• 包餡菠蘿：6～8 分鐘</li>
+                        <li>• 鹽奶油卷：4～5 分鐘</li>
+                        <li>• 原味菠蘿：4～5 分鐘</li>
+                        <li>• 冰火菠蘿：建議當日食用</li>
+                        <li>• 吐司系列：退冰後即可食用。</li>
+                      </ul>
+                    </div>
+                    <p className="text-[11px] text-stone-400 pt-0.5">※ 實際加熱時間可依設備功率及個人喜好調整。</p>
+                  </div>
+
+                  <div className="bg-stone-50 p-3 rounded-xl border border-stone-200 space-y-1 text-xs">
+                    <p className="font-bold text-stone-900">二、商品保存方式</p>
+                    <ul className="pl-3 space-y-0.5 text-stone-600">
+                      <li>• 一般室溫（25°C以下）：建議保存 1 天。</li>
+                      <li>• 冷凍保存：建議保存 7 天。</li>
+                      <li>• 吐司系列：密封保存，室溫可保存 3 天。</li>
+                    </ul>
+                    <p className="text-[11px] text-stone-400 pt-0.5">※ 需密封保存，以維持商品口感。</p>
+                  </div>
+
+                  <div className="bg-stone-50 p-3 rounded-xl border border-stone-200 space-y-1 text-xs">
+                    <p className="font-bold text-stone-900">三、食用注意事項</p>
+                    <ol className="list-decimal pl-5 space-y-1 text-stone-600">
+                      <li><strong>回烤前請先解凍：</strong> 建議前一晚將冷凍商品移至冷藏退冰，或於食用前放置室溫退冰。</li>
+                      <li><strong>包餡商品：</strong> 包餡菠蘿建議當天食用完畢，若未食用完畢，請放入冷凍保存。</li>
+                      <li><strong>菠蘿系列：</strong> 菠蘿系列建議隔日食用前再次回烤，才能恢復接近當天出爐的口感。因菠蘿外皮容易受潮，回烤後風味更佳。</li>
+                      <li><strong>加熱設備：</strong> 不建議使用微波爐及電鍋加熱，以免商品受潮，影響外皮酥脆度及整體口感。</li>
+                    </ol>
+                  </div>
+                </div>
+              </section>
+
+              <div className="text-center pt-3 border-t border-stone-200 text-amber-950 font-semibold text-xs">
+                感謝您的支持與喜愛，希望每一份烘焙都能為您帶來美好的味覺體驗。
+              </div>
+            </div>
+
+            <div className="mt-6 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowNoticeModal(false)}
+                className="w-full bg-amber-800 hover:bg-amber-900 text-white py-2.5 rounded-xl font-bold text-xs sm:text-sm transition shadow-sm"
+              >
+                我已瞭解並同意說明
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 預約成功彈窗 Modal */}
       {showSuccessModal && (
