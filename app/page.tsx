@@ -72,7 +72,6 @@ export default function HomePage() {
   const [lookupResults, setLookupResults] = useState<LookedUpOrder[] | null>(null);
   const [lookupLoading, setLookupLoading] = useState(false);
 
-  // 🌟 訂購與配送須知彈窗控制 State
   const [showNoticeModal, setShowNoticeModal] = useState(false);
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -406,406 +405,413 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-stone-50 overflow-x-hidden">
-      <header className="-mx-3 -mt-3 sm:mx-auto sm:mt-0 max-w-5xl text-center mb-6 md:mb-10 flex flex-col items-center relative">
-        <div className="w-full flex justify-end mb-2 px-3">
-          <button
-            onClick={() => {
-              setShowLookupModal(true);
-              setLookupResults(null);
-            }}
-            className="bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm flex items-center space-x-1.5 transition"
-          >
-            <span>🔍 查詢預約訂單</span>
-          </button>
-        </div>
-
-        <div className="w-full sm:max-w-md md:max-w-lg">
-          <img
-            src="/logo.png"
-            alt="三日酵 THREEDAYS"
-            className="w-full h-auto block object-cover drop-shadow-sm mb-3"
-          />
-        </div>
-        
-        <p className="text-xs md:text-sm font-semibold text-stone-600 bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full border border-stone-200/80 shadow-xs mx-3">
-          熱量就該浪費在美好的菠蘿上
-        </p>
-      </header>
-
-      <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        <section className="lg:col-span-2 space-y-8">
-          {loading && <p className="text-stone-400 animate-pulse text-sm">載入麵包品項中...</p>}
-          {errorMsg && <p className="text-red-500 font-semibold text-sm">{errorMsg}</p>}
-
-          {!loading && !errorMsg && products.length === 0 && (
-            <p className="text-stone-400 text-sm bg-white p-4 rounded-xl text-center border border-stone-200">
-              目前尚無上架商品，請至後台新增！
-            </p>
-          )}
-
-          {!loading &&
-            sortedCategoryNames.map((categoryName) => (
-              <div key={categoryName} className="space-y-3">
-                <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-300/80 pb-2 flex items-center bg-white px-3 py-1.5 rounded-lg border border-stone-200">
-                  <span>{categoryName}</span>
-                </h2>
-
-                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
-                  {categorizedProducts[categoryName].map((item) => {
-                    const qty = cart[item.id] || 0;
-                    return (
-                      <div
-                        key={item.id}
-                        className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition"
-                      >
-                        <div>
-                          {item.image_url ? (
-                            <div
-                              onClick={() => setPreviewImage(item.image_url)}
-                              className="w-full h-28 sm:h-36 md:h-40 overflow-hidden cursor-zoom-in relative group"
-                              title="點擊放大檢視圖片"
-                            >
-                              <img
-                                src={item.image_url}
-                                alt={item.name}
-                                className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                              />
-                              <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold">
-                                🔍 點擊放大
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="w-full h-28 sm:h-36 md:h-40 bg-stone-100 flex items-center justify-center text-stone-400 text-xs">
-                              尚無圖片
-                            </div>
-                          )}
-
-                          <div className="p-2.5 sm:p-4">
-                            <h3 className="text-sm sm:text-base font-bold text-stone-900 leading-snug break-words">
-                              {item.name}
-                            </h3>
-                            <p className="text-stone-500 text-xs mt-1 leading-relaxed break-words whitespace-pre-line">
-                              {item.description || '新鮮美味手作'}
-                            </p>
-                            <div className="flex justify-between items-center mt-2">
-                              <span className="text-amber-900 font-bold text-sm sm:text-base">
-                                ${item.price} 元
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="p-2.5 sm:p-4 pt-0 flex items-center justify-between">
-                          <span className="text-[10px] sm:text-xs text-stone-500 hidden sm:inline">
-                            數量：
-                          </span>
-                          <div className="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto justify-between sm:justify-end">
-                            <button
-                              onClick={() => updateCartQuantity(item.id, -1)}
-                              className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-stone-100 text-stone-700 font-bold hover:bg-stone-200 text-xs sm:text-sm flex items-center justify-center"
-                            >
-                              -
-                            </button>
-                            <span className="w-5 text-center font-bold text-xs sm:text-sm">
-                              {qty}
-                            </span>
-                            <button
-                              onClick={() => updateCartQuantity(item.id, 1)}
-                              className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-amber-800 text-white font-bold hover:bg-amber-900 text-xs sm:text-sm flex items-center justify-center"
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-        </section>
-
-        <section className="space-y-6 h-fit sticky top-6">
-          <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 shadow-sm text-stone-800 space-y-4">
-            <h3 className="font-bold text-amber-950 text-base flex items-center border-b border-amber-200/60 pb-2">
-              <span className="mr-1.5">📌</span> 預訂注意事項
-            </h3>
-
-            <div className="space-y-3 text-xs text-stone-700 leading-relaxed">
-              <div className="font-bold text-rose-800 bg-rose-50 p-2.5 rounded-lg border border-rose-200 text-center space-y-0.5">
-                <p>🔸 不接受當日預訂</p>
-                <p>🔸 當日請直接至現場購買</p>
-              </div>
-
-              <div className="space-y-1 pt-1">
-                <p className="font-bold text-amber-950">
-                  ▪ 消費滿 200 元，請於 2 天前完成預訂；付款完成後才算訂單成立。
-                </p>
-              </div>
-
-              <div className="space-y-0.5">
-                <p className="font-bold text-amber-950">▪ 預訂未滿 200 元，請直接至現場選購。</p>
-                <p className="pl-3 text-stone-600 font-medium">（12:00–13:00 品項最齊全）</p>
-              </div>
-
-              <div className="bg-white/80 p-3 rounded-xl border border-amber-300/80 space-y-2">
-                <p className="font-bold text-amber-950 flex items-center">
-                  🚚 宅配運費說明：
-                </p>
-                
-                <div className="space-y-1 pl-1">
-                  <p className="font-bold text-amber-900">📦 麵包冷凍宅配運費：</p>
-                  <ul className="pl-3 text-stone-600 space-y-0.5 text-[11px]">
-                    <li>• 訂購金額 0～500 元……運費 160 元</li>
-                    <li>• 訂購金額 501～1000 元……運費 220 元</li>
-                    <li>• 訂購金額 1000～2000 元……運費 290 元</li>
-                  </ul>
-                </div>
-
-                <div className="space-y-1 pl-1 pt-1 border-t border-amber-200/60">
-                  <p className="font-bold text-amber-900">🥮 月餅禮盒宅配運費：</p>
-                  <ul className="pl-3 text-stone-600 space-y-0.5 text-[11px]">
-                    <li>• 2 盒以下……運費 125 元</li>
-                    <li>• 3～5 盒……運費 205 元</li>
-                    <li>• 6 盒以上……<span className="font-bold text-emerald-700">免運</span></li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="space-y-0.5 bg-amber-100/60 p-2 rounded-lg border border-amber-200/80">
-                <p className="font-bold text-amber-900">
-                  ▪ 訂單送出後，點擊客服，核對訂單並取得匯款帳號；付款完成後才算完成訂單。
-                </p>
-              </div>
-
-              <hr className="border-amber-200/60 my-2" />
-
-              <div className="space-y-1 text-[11px] text-stone-800">
-                <p className="font-bold text-stone-900">⏰ 取餐時段：</p>
-                <p className="pl-2">• 14:00–18:00 ｜ 櫃檯取餐</p>
-                <p className="pl-2">• 18:00–00:00 ｜ 無人商店（冷藏保存）取餐</p>
-              </div>
-            </div>
-
-            <a
-              href="https://line.me/R/ti/p/@399mteem"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm transition transform active:scale-95"
+    <main className="min-h-screen text-stone-800 p-3 sm:p-6 md:p-12 bg-stone-50 overflow-x-hidden flex flex-col justify-between">
+      <div>
+        <header className="-mx-3 -mt-3 sm:mx-auto sm:mt-0 max-w-5xl text-center mb-6 md:mb-10 flex flex-col items-center relative">
+          <div className="w-full flex justify-end mb-2 px-3">
+            <button
+              onClick={() => {
+                setShowLookupModal(true);
+                setLookupResults(null);
+              }}
+              className="bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm flex items-center space-x-1.5 transition"
             >
-              <span>點擊加入 LINE 官方客服對談</span>
-            </a>
+              <span>🔍 查詢預約訂單</span>
+            </button>
           </div>
 
-          <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg md:text-xl font-bold text-amber-950">🛒 預約結帳單</h2>
-              {/* 🌟 訂購與配送須知彈窗觸發連結按鈕 */}
-              <button
-                type="button"
-                onClick={() => setShowNoticeModal(true)}
-                className="text-xs font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200/80 transition flex items-center space-x-1"
-              >
-                <span>📖 訂購與配送須知</span>
-              </button>
-            </div>
+          <div className="w-full sm:max-w-md md:max-w-lg">
+            <img
+              src="/logo.png"
+              alt="三日酵 THREEDAYS"
+              className="w-full h-auto block object-cover drop-shadow-sm mb-3"
+            />
+          </div>
+          
+          <p className="text-xs md:text-sm font-semibold text-stone-600 bg-white/80 backdrop-blur-sm px-4 py-1 rounded-full border border-stone-200/80 shadow-xs mx-3">
+            熱量就該浪費在美好的菠蘿上
+          </p>
+        </header>
 
-            {cartItems.length === 0 ? (
-              <p className="text-stone-400 text-xs sm:text-sm py-4 text-center">尚未選擇任何麵包品項</p>
-            ) : (
-              <div className="divide-y divide-stone-100 mb-4">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="py-2 flex justify-between text-xs sm:text-sm">
-                    <span>
-                      {item.name} x {item.quantity}
-                    </span>
-                    <span className="font-semibold text-amber-900">
-                      ${item.price * item.quantity}
-                    </span>
-                  </div>
-                ))}
+        <div className="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+          <section className="lg:col-span-2 space-y-8">
+            {loading && <p className="text-stone-400 animate-pulse text-sm">載入麵包品項中...</p>}
+            {errorMsg && <p className="text-red-500 font-semibold text-sm">{errorMsg}</p>}
 
-                <div className="pt-3 space-y-1">
-                  <div className="flex justify-between text-xs text-stone-600">
-                    <span>商品小計：</span>
-                    <span>${productSubtotal} 元</span>
-                  </div>
-                  {pickupType === '宅配快遞' && (
-                    <div className="flex justify-between text-xs text-amber-900 font-medium">
-                      <span>🚚 宅配運費：</span>
-                      <span>+${deliveryFee} 元</span>
-                    </div>
-                  )}
-                  <div className="pt-2 flex justify-between font-bold text-sm sm:text-base text-amber-950 border-t border-stone-200">
-                    <span>總計金額：</span>
-                    <span>${totalPrice} 元</span>
+            {!loading && !errorMsg && products.length === 0 && (
+              <p className="text-stone-400 text-sm bg-white p-4 rounded-xl text-center border border-stone-200">
+                目前尚無上架商品，請至後台新增！
+              </p>
+            )}
+
+            {!loading &&
+              sortedCategoryNames.map((categoryName) => (
+                <div key={categoryName} className="space-y-3">
+                  <h2 className="text-lg md:text-xl font-bold text-amber-950 border-b border-amber-300/80 pb-2 flex items-center bg-white px-3 py-1.5 rounded-lg border border-stone-200">
+                    <span>{categoryName}</span>
+                  </h2>
+
+                  <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
+                    {categorizedProducts[categoryName].map((item) => {
+                      const qty = cart[item.id] || 0;
+                      return (
+                        <div
+                          key={item.id}
+                          className="bg-white rounded-xl md:rounded-2xl overflow-hidden shadow-sm border border-stone-200 flex flex-col justify-between hover:shadow-md transition"
+                        >
+                          <div>
+                            {item.image_url ? (
+                              <div
+                                onClick={() => setPreviewImage(item.image_url)}
+                                className="w-full h-28 sm:h-36 md:h-40 overflow-hidden cursor-zoom-in relative group"
+                                title="點擊放大檢視圖片"
+                              >
+                                <img
+                                  src={item.image_url}
+                                  alt={item.name}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                />
+                                <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-xs font-semibold">
+                                  🔍 點擊放大
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="w-full h-28 sm:h-36 md:h-40 bg-stone-100 flex items-center justify-center text-stone-400 text-xs">
+                                尚無圖片
+                              </div>
+                            )}
+
+                            <div className="p-2.5 sm:p-4">
+                              <h3 className="text-sm sm:text-base font-bold text-stone-900 leading-snug break-words">
+                                {item.name}
+                              </h3>
+                              <p className="text-stone-500 text-xs mt-1 leading-relaxed break-words whitespace-pre-line">
+                                {item.description || '新鮮美味手作'}
+                              </p>
+                              <div className="flex justify-between items-center mt-2">
+                                <span className="text-amber-900 font-bold text-sm sm:text-base">
+                                  ${item.price} 元
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 sm:p-4 pt-0 flex items-center justify-between">
+                            <span className="text-[10px] sm:text-xs text-stone-500 hidden sm:inline">
+                              數量：
+                            </span>
+                            <div className="flex items-center space-x-1.5 sm:space-x-2 w-full sm:w-auto justify-between sm:justify-end">
+                              <button
+                                onClick={() => updateCartQuantity(item.id, -1)}
+                                className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-stone-100 text-stone-700 font-bold hover:bg-stone-200 text-xs sm:text-sm flex items-center justify-center"
+                              >
+                                -
+                              </button>
+                              <span className="w-5 text-center font-bold text-xs sm:text-sm">
+                                {qty}
+                              </span>
+                              <button
+                                onClick={() => updateCartQuantity(item.id, 1)}
+                                className="w-6 h-6 sm:w-8 sm:h-8 rounded bg-amber-800 text-white font-bold hover:bg-amber-900 text-xs sm:text-sm flex items-center justify-center"
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              </div>
-            )}
+              ))}
+          </section>
 
-            {productSubtotal > 0 && productSubtotal < 200 && (
-              <div className="bg-rose-50 text-rose-700 text-xs p-2.5 rounded-lg border border-rose-200 mb-3 font-medium">
-                ⚠️ 預訂金額未滿 200 元（目前 ${productSubtotal} 元），無法線上預約，請至現場購買或加購商品。
-              </div>
-            )}
+          <section className="space-y-6 h-fit sticky top-6">
+            <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 shadow-sm text-stone-800 space-y-4">
+              <h3 className="font-bold text-amber-950 text-base flex items-center border-b border-amber-200/60 pb-2">
+                <span className="mr-1.5">📌</span> 預訂注意事項
+              </h3>
 
-            <form onSubmit={handleSubmitOrder} className="space-y-3 mt-4 pt-4 border-t border-stone-200">
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">訂購人姓名 *</label>
-                <input
-                  type="text"
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                  placeholder="王小明"
-                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
-                  required
-                />
-              </div>
+              <div className="space-y-3 text-xs text-stone-700 leading-relaxed">
+                <div className="font-bold text-rose-800 bg-rose-50 p-2.5 rounded-lg border border-rose-200 text-center space-y-0.5">
+                  <p>🔸 不接受當日預訂</p>
+                  <p>🔸 當日請直接至現場購買</p>
+                </div>
 
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">聯絡電話 *</label>
-                <input
-                  type="tel"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  placeholder="0912345678"
-                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
-                  required
-                />
-              </div>
+                <div className="space-y-1 pt-1">
+                  <p className="font-bold text-amber-950">
+                    ▪ 消費滿 200 元，請於 2 天前完成預訂；付款完成後才算訂單成立。
+                  </p>
+                </div>
 
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">取貨方式 *</label>
-                <select
-                  value={pickupType}
-                  onChange={(e) => handlePickupTypeChange(e.target.value)}
-                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
-                >
-                  <option value="到店自取 (復興店)">到店自取 (復興店)</option>
+                <div className="space-y-0.5">
+                  <p className="font-bold text-amber-950">▪ 預訂未滿 200 元，請直接至現場選購。</p>
+                  <p className="pl-3 text-stone-600 font-medium">（12:00–13:00 品項最齊全）</p>
+                </div>
+
+                <div className="bg-white/80 p-3 rounded-xl border border-amber-300/80 space-y-2">
+                  <p className="font-bold text-amber-950 flex items-center">
+                    🚚 宅配運費說明：
+                  </p>
                   
-                  {pickupLocations.map((loc) => (
-                    <option key={loc.id} value={loc.name}>
-                      {loc.name}{loc.pickup_time_slots ? ` — ${loc.pickup_time_slots}` : ''}
-                    </option>
+                  <div className="space-y-1 pl-1">
+                    <p className="font-bold text-amber-900">📦 麵包冷凍宅配運費：</p>
+                    <ul className="pl-3 text-stone-600 space-y-0.5 text-[11px]">
+                      <li>• 訂購金額 0～500 元……運費 160 元</li>
+                      <li>• 訂購金額 501～1000 元……運費 220 元</li>
+                      <li>• 訂購金額 1000～2000 元……運費 290 元</li>
+                    </ul>
+                  </div>
+
+                  <div className="space-y-1 pl-1 pt-1 border-t border-amber-200/60">
+                    <p className="font-bold text-amber-900">🥮 月餅禮盒宅配運費：</p>
+                    <ul className="pl-3 text-stone-600 space-y-0.5 text-[11px]">
+                      <li>• 2 盒以下……運費 125 元</li>
+                      <li>• 3～5 盒……運費 205 元</li>
+                      <li>• 6 盒以上……<span className="font-bold text-emerald-700">免運</span></li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="space-y-0.5 bg-amber-100/60 p-2 rounded-lg border border-amber-200/80">
+                  <p className="font-bold text-amber-900">
+                    ▪ 訂單送出後，點擊客服，核對訂單並取得匯款帳號；付款完成後才算完成訂單。
+                  </p>
+                </div>
+
+                <hr className="border-amber-200/60 my-2" />
+
+                <div className="space-y-1 text-[11px] text-stone-800">
+                  <p className="font-bold text-stone-900">⏰ 取餐時段：</p>
+                  <p className="pl-2">• 14:00–18:00 ｜ 櫃檯取餐</p>
+                  <p className="pl-2">• 18:00–00:00 ｜ 無人商店（冷藏保存）取餐</p>
+                </div>
+              </div>
+
+              <a
+                href="https://line.me/R/ti/p/@399mteem"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-[#06C755] hover:bg-[#05b34c] text-white py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center space-x-2 shadow-sm transition transform active:scale-95"
+              >
+                <span>點擊加入 LINE 官方客服對談</span>
+              </a>
+            </div>
+
+            <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-sm border border-stone-200">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-lg md:text-xl font-bold text-amber-950">🛒 預約結帳單</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowNoticeModal(true)}
+                  className="text-xs font-bold text-amber-800 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200/80 transition flex items-center space-x-1"
+                >
+                  <span>📖 訂購與配送須知</span>
+                </button>
+              </div>
+
+              {cartItems.length === 0 ? (
+                <p className="text-stone-400 text-xs sm:text-sm py-4 text-center">尚未選擇任何麵包品項</p>
+              ) : (
+                <div className="divide-y divide-stone-100 mb-4">
+                  {cartItems.map((item) => (
+                    <div key={item.id} className="py-2 flex justify-between text-xs sm:text-sm">
+                      <span>
+                        {item.name} x {item.quantity}
+                      </span>
+                      <span className="font-semibold text-amber-900">
+                        ${item.price * item.quantity}
+                      </span>
+                    </div>
                   ))}
 
-                  <option value="宅配快遞">宅配快遞</option>
-                </select>
-
-                {selectedLocationAddress && (
-                  <div className="mt-2 p-2.5 bg-amber-50/80 rounded-lg border border-amber-200 text-xs text-amber-950 font-medium flex items-start space-x-1 animate-fadeIn">
-                    <span className="shrink-0">📍</span>
-                    <span><strong>門市地址：</strong>{selectedLocationAddress}</span>
+                  <div className="pt-3 space-y-1">
+                    <div className="flex justify-between text-xs text-stone-600">
+                      <span>商品小計：</span>
+                      <span>${productSubtotal} 元</span>
+                    </div>
+                    {pickupType === '宅配快遞' && (
+                      <div className="flex justify-between text-xs text-amber-900 font-medium">
+                        <span>🚚 宅配運費：</span>
+                        <span>+${deliveryFee} 元</span>
+                      </div>
+                    )}
+                    <div className="pt-2 flex justify-between font-bold text-sm sm:text-base text-amber-950 border-t border-stone-200">
+                      <span>總計金額：</span>
+                      <span>${totalPrice} 元</span>
+                    </div>
                   </div>
-                )}
-              </div>
-
-              {pickupType === '宅配快遞' && (
-                <div className="animate-fadeIn">
-                  <label className="block text-xs font-medium text-amber-900 mb-1">
-                    🚚 宅配收件地址 *
-                  </label>
-                  <input
-                    type="text"
-                    value={deliveryAddress}
-                    onChange={(e) => setDeliveryAddress(e.target.value)}
-                    placeholder="請輸入完整的縣市、區域與街道門牌"
-                    className="w-full p-2 border border-amber-400 rounded-lg text-xs sm:text-sm bg-amber-50/50 focus:bg-white"
-                    required
-                  />
                 </div>
               )}
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {productSubtotal > 0 && productSubtotal < 200 && (
+                <div className="bg-rose-50 text-rose-700 text-xs p-2.5 rounded-lg border border-rose-200 mb-3 font-medium">
+                  ⚠️ 預訂金額未滿 200 元（目前 ${productSubtotal} 元），無法線上預約，請至現場購買或加購商品。
+                </div>
+              )}
+
+              <form onSubmit={handleSubmitOrder} className="space-y-3 mt-4 pt-4 border-t border-stone-200">
                 <div>
-                  <label className="block text-xs font-medium text-stone-600 mb-1">
-                    {pickupType === '宅配快遞' ? '預計寄送日 *' : '預約取貨日 *'}
-                    {isDateTimeLocked && <span className="text-amber-800 text-[10px] ml-1 font-bold">(固定)</span>}
-                  </label>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">訂購人姓名 *</label>
                   <input
-                    type="date"
-                    min={minDate}
-                    value={pickupDate}
-                    onChange={handleDateChange}
-                    disabled={isDateTimeLocked}
-                    className={`w-full p-2 border rounded-lg text-xs sm:text-sm ${
-                      isDateTimeLocked
-                        ? 'bg-stone-100 text-stone-600 font-bold cursor-not-allowed border-amber-300'
-                        : dateError
-                        ? 'border-rose-500 bg-rose-50'
-                        : 'border-stone-300 bg-white'
-                    }`}
+                    type="text"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    placeholder="王小明"
+                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
                     required
                   />
-                  {dateError && !isDateTimeLocked && (
-                    <p className="text-[11px] text-rose-600 font-bold mt-1 bg-rose-50 p-1.5 rounded border border-rose-200">
-                      {dateError}
-                    </p>
-                  )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-stone-600 mb-1">
-                    {pickupType === '宅配快遞' ? '希望送達時間 *' : '取貨時間區間 *'}
-                    {isDateTimeLocked && <span className="text-amber-800 text-[10px] ml-1 font-bold">(固定)</span>}
-                  </label>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">聯絡電話 *</label>
+                  <input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="0912345678"
+                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
+                    required
+                  />
+                </div>
 
-                  {isDateTimeLocked ? (
-                    <input
-                      type="text"
-                      value={pickupTime}
-                      disabled
-                      className="w-full p-2 border border-amber-300 rounded-lg text-xs sm:text-sm bg-stone-100 text-stone-600 font-bold cursor-not-allowed"
-                    />
-                  ) : (
-                    <select
-                      value={pickupTime}
-                      onChange={(e) => setPickupTime(e.target.value)}
-                      className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
-                      required
-                    >
-                      <option value="14:00">14:00</option>
-                      <option value="15:00">15:00</option>
-                      <option value="16:00">16:00</option>
-                      <option value="17:00">17:00</option>
-                      <option value="18:00">18:00</option>
-                      <option value="19:00">19:00</option>
-                      <option value="20:00">20:00</option>
-                      <option value="21:00">21:00</option>
-                      <option value="22:00">22:00</option>
-                      <option value="23:00">23:00</option>
-                      <option value="00:00">00:00</option>
-                    </select>
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">取貨方式 *</label>
+                  <select
+                    value={pickupType}
+                    onChange={(e) => handlePickupTypeChange(e.target.value)}
+                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
+                  >
+                    <option value="到店自取 (復興店)">到店自取 (復興店)</option>
+                    
+                    {pickupLocations.map((loc) => (
+                      <option key={loc.id} value={loc.name}>
+                        {loc.name}{loc.pickup_time_slots ? ` — ${loc.pickup_time_slots}` : ''}
+                      </option>
+                    ))}
+
+                    <option value="宅配快遞">宅配快遞</option>
+                  </select>
+
+                  {selectedLocationAddress && (
+                    <div className="mt-2 p-2.5 bg-amber-50/80 rounded-lg border border-amber-200 text-xs text-amber-950 font-medium flex items-start space-x-1 animate-fadeIn">
+                      <span className="shrink-0">📍</span>
+                      <span><strong>門市地址：</strong>{selectedLocationAddress}</span>
+                    </div>
                   )}
                 </div>
-              </div>
 
-              <div>
-                <label className="block text-xs font-medium text-stone-600 mb-1">備註說明</label>
-                <input
-                  type="text"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="如有特殊需求請註明"
-                  className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
-                />
-              </div>
+                {pickupType === '宅配快遞' && (
+                  <div className="animate-fadeIn">
+                    <label className="block text-xs font-medium text-amber-900 mb-1">
+                      🚚 宅配收件地址 *
+                    </label>
+                    <input
+                      type="text"
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      placeholder="請輸入完整的縣市、區域與街道門牌"
+                      className="w-full p-2 border border-amber-400 rounded-lg text-xs sm:text-sm bg-amber-50/50 focus:bg-white"
+                      required
+                    />
+                  </div>
+                )}
 
-              <button
-                type="submit"
-                disabled={submitting || cartItems.length === 0 || productSubtotal < 200 || !pickupDate}
-                className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold text-xs sm:text-sm hover:bg-amber-900 transition disabled:bg-stone-300 mt-2 shadow-sm"
-              >
-                {submitting ? '送出預約中...' : '送出麵包預約單'}
-              </button>
-            </form>
-          </div>
-        </section>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-stone-600 mb-1">
+                      {pickupType === '宅配快遞' ? '預計寄送日 *' : '預約取貨日 *'}
+                      {isDateTimeLocked && <span className="text-amber-800 text-[10px] ml-1 font-bold">(固定)</span>}
+                    </label>
+                    <input
+                      type="date"
+                      min={minDate}
+                      value={pickupDate}
+                      onChange={handleDateChange}
+                      disabled={isDateTimeLocked}
+                      className={`w-full p-2 border rounded-lg text-xs sm:text-sm ${
+                        isDateTimeLocked
+                          ? 'bg-stone-100 text-stone-600 font-bold cursor-not-allowed border-amber-300'
+                          : dateError
+                          ? 'border-rose-500 bg-rose-50'
+                          : 'border-stone-300 bg-white'
+                      }`}
+                      required
+                    />
+                    {dateError && !isDateTimeLocked && (
+                      <p className="text-[11px] text-rose-600 font-bold mt-1 bg-rose-50 p-1.5 rounded border border-rose-200">
+                        {dateError}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-stone-600 mb-1">
+                      {pickupType === '宅配快遞' ? '希望送達時間 *' : '取貨時間區間 *'}
+                      {isDateTimeLocked && <span className="text-amber-800 text-[10px] ml-1 font-bold">(固定)</span>}
+                    </label>
+
+                    {isDateTimeLocked ? (
+                      <input
+                        type="text"
+                        value={pickupTime}
+                        disabled
+                        className="w-full p-2 border border-amber-300 rounded-lg text-xs sm:text-sm bg-stone-100 text-stone-600 font-bold cursor-not-allowed"
+                      />
+                    ) : (
+                      <select
+                        value={pickupTime}
+                        onChange={(e) => setPickupTime(e.target.value)}
+                        className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
+                        required
+                      >
+                        <option value="14:00">14:00</option>
+                        <option value="15:00">15:00</option>
+                        <option value="16:00">16:00</option>
+                        <option value="17:00">17:00</option>
+                        <option value="18:00">18:00</option>
+                        <option value="19:00">19:00</option>
+                        <option value="20:00">20:00</option>
+                        <option value="21:00">21:00</option>
+                        <option value="22:00">22:00</option>
+                        <option value="23:00">23:00</option>
+                        <option value="00:00">00:00</option>
+                      </select>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-stone-600 mb-1">備註說明</label>
+                  <input
+                    type="text"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="如有特殊需求請註明"
+                    className="w-full p-2 border border-stone-300 rounded-lg text-xs sm:text-sm bg-white"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={submitting || cartItems.length === 0 || productSubtotal < 200 || !pickupDate}
+                  className="w-full bg-amber-800 text-white py-3 rounded-lg font-bold text-xs sm:text-sm hover:bg-amber-900 transition disabled:bg-stone-300 mt-2 shadow-sm"
+                >
+                  {submitting ? '送出預約中...' : '送出麵包預約單'}
+                </button>
+              </form>
+            </div>
+          </section>
+        </div>
       </div>
 
-      {/* 🌟 訂購與配送須知彈窗 Modal */}
+      {/* 🌟 店家營業資訊與統編頁尾 */}
+      <footer className="max-w-5xl mx-auto w-full mt-12 pt-6 border-t border-stone-200/80 text-center text-xs text-stone-500 space-y-1">
+        <p className="font-semibold text-stone-700">三日酵麵包店 ｜ 統編：85488235</p>
+        <p className="text-[11px] text-stone-400">© {new Date().getFullYear()} THREEDAYS BAKERY. All Rights Reserved.</p>
+      </footer>
+
+      {/* 訂購與配送須知彈窗 Modal */}
       {showNoticeModal && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fadeIn">
           <div className="bg-white p-6 rounded-2xl max-w-xl w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-stone-200">
